@@ -13,6 +13,7 @@ import { GLYPHS, SQUID } from './ui-icons.js';
 import { splatClip, splatCover, inkBurst } from './menu-art.js';
 import { BOSS_NAME, bossSilhouette } from './boss-art.js';
 import { G } from '../core/ctx.js';
+import { t } from '../i18n/strings.js';
 
 export const NEWS_ID = 'mp-expansion-1';
 const KEY = 'inkwave.news';
@@ -103,7 +104,8 @@ export class WhatsNew {
     this.inkHost = h('div', { class: 'iw-news__inks' });
     this.card = h('div', { class: 'iw-news__card' });
     this.confetti = h('div', { class: 'iw-news__confetti' });
-    const el = this.el = h('div', { class: 'iw-news' + (this.reduced ? ' is-reduced' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'What’s new' },
+    // h() only translates `title`, so the aria label is passed through t() by hand
+    const el = this.el = h('div', { class: 'iw-news' + (this.reduced ? ' is-reduced' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': t('What’s new') },
       h('div', { class: 'iw-news__dim' }), this.inkHost, this.confetti, h('div', { class: 'iw-news__stage' }, this.card));
     el._onBack = () => this.close('back');
     el.dataset.keys = '1';
@@ -142,8 +144,8 @@ export class WhatsNew {
       P.stamp ? h('span', { class: `iw-news__stamp ${P.stamp.cls}` }, P.stamp.text) : null,
       P.tape ? h('span', { class: 'iw-news__tape' }, h('span', null, P.tape)) : null);
     // body
-    const list = h('ul', { class: 'iw-news__list' }, P.bullets.map(([ic, b, t, thumb], k) => {
-      const li = h('li', { style: { '--i': k } }, h('i', { class: 'iw-news__bico', html: ic }), h('span', null, h('b', null, b), ` — ${t}`));
+    const list = h('ul', { class: 'iw-news__list' }, P.bullets.map(([ic, b, txt, thumb], k) => {
+      const li = h('li', { style: { '--i': k } }, h('i', { class: 'iw-news__bico', html: ic }), h('span', null, h('b', null, t(b)), ` — ${t(txt)}`));
       if (thumb) {
         const im = h('img', { class: 'iw-news__thumb', alt: '', draggable: 'false' });
         im.addEventListener('error', () => im.remove(), { once: true });

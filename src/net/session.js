@@ -9,6 +9,7 @@ import { MAPS, WEAPONS, WEAPON_ORDER, SUBS, SUB_ORDER, SPECIALS, SPECIAL_ORDER, 
 import { randomStyle } from '../game/character-style.js';
 import { Transport } from './transport.js';
 import { NetMatch } from './netmatch.js';
+import { ERR, netError, codeFromText } from './errors.js';
 
 // no 0/O or 1/I (misread), and no W/A/S/D: those move the menu cursor, so any other key typed on the online hub can
 // only mean a room code (28⁵ ≈ 17 M codes)
@@ -23,7 +24,8 @@ export class NetSession {
     this.code = null;
     this.myId = null;
     this.hostId = null;
-    this.error = null;
+    this.error = null;         // last failure, for logs / fallback text
+    this.errorCode = null;     // stable code for the same failure (src/net/errors.js) — what the UI keys off
     this.lobby = this._blankLobby();
     this._subs = new Map();
     this.tr = null;
@@ -72,7 +74,8 @@ export class NetSession {
     let lastErr = null;
     for (let tries = 0; tries < 4; tries++) {
       const code = Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
-      try { await this._connect(code, name, true); return code; } catch (e) { lastErr = e; if (e.message !== 'Room code taken') break; }
+      // the retry loop keys off the error *code*, so the message wording is free to be translated
+      try { await this._connect(code, name, true); return code; } catch (e) { lastErr = e; if (e.code !== ERR.CODE_TAKEN) break; }
     }
     this._fail(lastErr);
     throw lastErr;
@@ -80,7 +83,7 @@ export class NetSession {
 
   async join(code, name) {
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (code.length < 4) { const e = new Error('Room not found'); this._fail(e); throw e; }
+    if (code.length < 4) { const e = netError(ERR.NOT_FOUND, 'Room not found'); this._fail(e); throw e; }
     try { await this._connect(code, name, false); } catch (e) { this._fail(e); throw e; }
   }
 
@@ -124,21 +127,24 @@ export class NetSession {
   }
 
   _fail(e) {
+    this.errorCode = e?.code || ERR.CONNECT;
     this.error = e?.message || 'Could not connect';
     this.tr?.close(); this.tr = null;
     this._setState('error');
-    this._emit('error', { message: this.error });
+    this._emit('error', { code: this.errorCode, message: this.error });
   }
 
   _closed(reason) {
     const inMatch = this.state === 'match' || this.state === 'starting';
-    this.error = reason === 'bye' ? null : 'Lost connection to the room';
+    const gone = reason !== 'bye';
+    this.errorCode = gone ? codeFromText(reason) || ERR.LOST : null;
+    this.error = gone ? (reason || 'Lost connection to the room') : null;
     this.match?.dispose(); this.match = null;
     this.tr = null;
     this.code = null;
     this._setState(this.error ? 'error' : 'offline');
-    if (this.error) this._emit('error', { message: this.error });
-    if (inMatch) G.game?.netMatchAborted?.(this.error);
+    if (this.error) this._emit('error', { code: this.errorCode, message: this.error });
+    if (inMatch) G.game?.netMatchAborted?.(this.errorCode || this.error);
   }
 
   // ------------------------------------------------------------------ relay membership
@@ -310,7 +316,7 @@ export class NetSession {
       await G.game.startNetMatch(cfg, this.match);
     } catch (e) {
       console.error('[net] match start failed', e);
-      this._fail(new Error('Could not start the match'));
+      this._fail(netError(ERR.MATCH_START, 'Could not start the match'));
       return;
     }
     if (this.isHost) this._markReady(this.myId);

@@ -18,6 +18,7 @@ import { getWeaponDef } from './character-weapons.js';
 import { getPlasticMaterial, getInkMaterial } from './character-mats.js';
 import { rumble } from './actor.js';
 import { SPECIAL_ICONS } from '../ui/ui-icons.js';
+import { t } from '../i18n/strings.js';
 import { KIT_GHOSTS, netRec, netId, netHurt, netMuted, ghostMute } from './kits/registry.js';
 
 // world props for the big specials (kraken, speaker, missile, jetpack, crab) — optional until they exist
@@ -388,17 +389,18 @@ export class SpecialSystem {
     if (s.dur) return Math.max(0, 1 - s.t / s.dur);
     return 1;
   }
-  // HUD hint for the local player while a special runs
+  // HUD hint for the local player while a special runs. Returns an i18n message id, or a { id, params } descriptor
+  // when a name/number goes in the middle (the HUD renders it: ui-util.msgText → t(id, params) → richText).
   prompt(a) {
     const s = a.specialActive;
     if (!s) return null;
     switch (s.kind) {
-      case 'barrage': return `${s.def.name}! Throw ${s.bomb.name}s with RMB / E — no ink needed`;
+      case 'barrage': return { id: '{special}! Throw {sub}s with RMB / E — no ink needed', params: { special: t(s.def.name), sub: t(s.bomb.name) } };
       case 'strike': return s.aiming ? 'Move the mouse to pick a spot · click to launch' : null;
       case 'zooka': return 'Fire twisters with LMB';
       case 'wail': return 'Aim the speaker · click to set it down and blast';
       case 'kraken': return 'Kraken! LMB to jump-attack';
-      case 'blower': return `Hold LMB to blow a bubble (${s.def.max - (s.count || 0)} left) · shoot bubbles to blast them`;
+      case 'blower': return { id: 'Hold LMB to blow a bubble ({n} left) · shoot bubbles to blast them', params: { n: s.def.max - (s.count || 0) } };
       case 'jetpack': return 'Ink Jet! Fire with LMB';
       case 'stamp': return 'LMB to stamp · jump + LMB to slam · RMB to throw';
       case 'booyah': return s.charge >= 1 ? 'Charged! LMB to throw' : 'Charging… teammates press C to cheer!';

@@ -12,6 +12,7 @@ import { h, clamp, splatSVG, restartAnim, easeOutCubic, fmtInt } from './ui-util
 import { GLYPHS } from './ui-icons.js';
 import { on, emit, G } from '../core/ctx.js';
 import { BOSS_NAME, BOSS_EPITHET, MOVE_ICONS, MOVE_LABELS, bossEmblem } from './boss-art.js';
+import { t } from '../i18n/strings.js';
 
 const NOTCHES = [2 / 3, 1 / 3];
 const CALL_MOVES = new Set(['slam', 'barrage', 'sweep', 'charge', 'crablets', 'frenzy']);
@@ -196,7 +197,7 @@ export class BossHud {
   _showCall(id) {
     this.call.dataset.move = id;
     this.callIcon.innerHTML = MOVE_ICONS[id] || MOVE_ICONS.open;
-    this.callTxt.textContent = MOVE_LABELS[id] || id.toUpperCase();
+    this.callTxt.textContent = t(MOVE_LABELS[id] || id.toUpperCase());
     this.call.classList.toggle('is-open', id === 'open');
     this.call.classList.toggle('has-dir', id === 'charge');
     this.call.classList.remove('is-act');
@@ -251,7 +252,7 @@ export class BossHud {
     if (phase >= 3) { this.bar.classList.add('is-enraged'); this.emb.querySelector('.iw-bb__embart').innerHTML = bossEmblem({ cracked: true }); }
     restartAnim(this.bar, 'is-phase');
     const T = PHASE_TXT[phase];
-    if (T) this._banner(T.big, T.sub, phase);
+    if (T) this._banner(t(T.big), t(T.sub), phase);
   }
 
   _defeat() {
@@ -274,10 +275,11 @@ export class BossHud {
     return true;
   }
 
-  /** Contextual prompt: the turf tutorial line becomes a boss one; OPEN! gets its own nudge. */
+  /** Contextual prompt: the turf tutorial line becomes a boss one; OPEN! gets its own nudge.
+   *  The tutorial is recognised by its message `kind` (a stable tag), never by matching the English wording. */
   prompt(p) {
-    if (this.S.openT > 0.4 && !this.S.dead) return 'It\u2019s OPEN \u2014 unload on it!';
-    if (p && /turf wins/i.test(p)) return this.S.phase >= 3 ? 'Shell cracked \u2014 hit the glowing belly!' : 'Shoot HULLBREAKER \u2014 its glowing eyes take extra damage!';
+    if (this.S.openT > 0.4 && !this.S.dead) return { id: 'It\u2019s OPEN \u2014 unload on it!' };
+    if (p && p.kind === 'turfTip') return { id: this.S.phase >= 3 ? 'Shell cracked \u2014 hit the glowing belly!' : 'Shoot HULLBREAKER \u2014 its glowing eyes take extra damage!' };
     return p;
   }
 
@@ -453,7 +455,7 @@ export class BossHud {
       h('div', { class: 'iw-btc__txt' },
         h('div', { class: 'iw-btc__tags' }, h('div', { class: 'iw-btc__tag' }, h('i', { html: GLYPHS.swords }), 'BOSS BATTLE'), h('span', { class: 'iw-beta iw-btc__beta' }, 'PUBLIC BETA')),
         h('div', { class: 'iw-btc__name iw-display' }, letters),
-        h('div', { class: 'iw-btc__epi' }, BOSS_EPITHET.toUpperCase())));
+        h('div', { class: 'iw-btc__epi' }, t(BOSS_EPITHET).toUpperCase())));
     el.addEventListener('animationend', (e) => { if (e.target === el) el.remove(); });
     setTimeout(() => el.remove(), 3200);
     this.over.appendChild(el);
@@ -478,14 +480,14 @@ export class BossHud {
     this.over.querySelectorAll('.iw-bph, .iw-btc').forEach((e) => e.remove());
     this.hud.bannerLayer.querySelectorAll('.iw-bn').forEach((b) => b.remove());
     const drops = Array.from({ length: 14 }, (_, i) => h('i', { class: 'iw-bend__drop', style: { '--a': `${i * (360 / 14) + Math.random() * 14}deg`, '--d': `${0.9 + Math.random() * 0.8}`, '--s': `${0.5 + Math.random() * 0.9}` } }));
-    const word = win ? 'SUNK!' : "TIME'S UP!";
+    const word = t(win ? 'SUNK!' : "TIME'S UP!");
     const el = h('div', { class: 'iw-bend ' + (win ? 'is-win' : 'is-lose') },
       h('div', { class: 'iw-bend__burst' }, drops),
       h('div', { class: 'iw-bend__splat b', html: splatSVG({ seed: win ? 12 : 8, fill: win ? 'var(--boss)' : 'var(--self)', r: 60, arms: 10, drops: 6 }) }),
       h('div', { class: 'iw-bend__splat', html: splatSVG({ seed: win ? 5 : 19, fill: win ? 'var(--self)' : 'var(--boss)', r: 60, arms: 11, drops: 8 }) }),
       h('div', { class: 'iw-bend__emb', html: bossEmblem({ cracked: win }) }),
       h('div', { class: 'iw-bend__txt' },
-        h('small', { class: 'iw-bend__who' }, win ? BOSS_NAME : 'HULLBREAKER GOT AWAY…'),
+        h('small', { class: 'iw-bend__who' }, win ? BOSS_NAME : t('HULLBREAKER GOT AWAY…')),
         h('div', { class: 'iw-bend__word iw-display' }, [...word].map((c, i) => h('span', { style: { '--i': i } }, c === ' ' ? ' ' : c)))));
     el.addEventListener('animationend', (e) => { if (e.target === el) el.remove(); });
     setTimeout(() => el.remove(), 5200);

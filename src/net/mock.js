@@ -16,13 +16,16 @@
 import { G } from '../core/ctx.js';
 import { WEAPON_ORDER, MAPS, TEAM_PALETTES, mapNoBots, mapBossOk, bossFallbackMap, noBotsStartBlock } from '../config.js';
 import * as LOOK from '../game/character-style.js';
+import { ERR, netError, codeFromText } from './errors.js';
 
 const q = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
 const NAMES = ['Mako', 'Tentakool', 'inkjet', 'Wavebreaker', 'Tidal Tia', 'Blot', 'Pixel', 'Kraken Kai', 'sploosh', 'Lulu',
   'Squee', 'Dashi', 'Juniper', 'Rin', 'Otto', 'Beanie', 'Glub', 'Zippy', 'Nibbles', 'Coraline', 'Seafoam', 'Momo'];
 const EMOTES = ['booyah', 'wave', 'dance', 'flex'];
 const CODE_ABC = 'BCEFGHJKLMNPQRTUVXYZ23456789'; // no O/0, I/1, W/A/S/D (as session.js)
-const FAIL = { ZZZZZ: 'Room not found', FULLY: 'Room is full', BUZYY: 'Match in progress', NETXX: 'Could not connect' };
+const FAIL = { ZZZZZ: ERR.NOT_FOUND, FULLY: ERR.FULL, BUZYY: ERR.IN_PROGRESS, NETXX: ERR.CONNECT };
+// English fallbacks for logs / unknown codes (the UI shows the dictionary entry for the code instead)
+const MOCK_ERR_TEXT = { [ERR.NOT_FOUND]: 'Room not found', [ERR.FULL]: 'Room is full', [ERR.IN_PROGRESS]: 'Match in progress', [ERR.CONNECT]: 'Could not connect' };
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rnd = Math.random;
 const pick = (a) => a[(rnd() * a.length) | 0];
@@ -34,6 +37,7 @@ export class MockNet {
     this.myId = null;
     this.hostId = null;
     this.error = null;
+    this.errorCode = null;
     this.lobby = null;
     this.startAt = 0;          // performance.now() when the match launches (state 'starting' → 'match')
     this.isMock = true;
@@ -106,12 +110,13 @@ export class MockNet {
     const tok = ++this._pending;
     await this._sleep(this._lat * (0.9 + rnd() * 0.6) + (code === 'NETXX' ? 1800 : 0));
     if (tok !== this._pending || this.state !== 'connecting') throw new Error('Cancelled');
-    const fail = code.length < 4 ? 'Room not found' : FAIL[code];
+    const fail = code.length < 4 ? ERR.NOT_FOUND : FAIL[code];
     if (fail) {
-      this.error = fail;
+      this.errorCode = fail;
+      this.error = MOCK_ERR_TEXT[fail] || fail;
       this._setState('error');          // like the real session: a failed connect leaves state 'error' + G.net.error
-      this._emit('error', { message: fail });
-      throw new Error(fail);
+      this._emit('error', { code: fail, message: this.error });
+      throw netError(fail, this.error);
     }
     this.code = code;
     const hostId = this._id();
@@ -150,7 +155,7 @@ export class MockNet {
       const want = o.team === 'auto' ? this._teamFor(me.id) : (o.team ? 1 : 0);
       const n = this.lobby.players.filter((p) => p.team === want && p.id !== me.id).length;
       if (want !== me.team) {
-        if (n >= 4) { this._later(this._rtt(), () => this._emit('error', { message: `Team ${want ? 'Bravo' : 'Alpha'} is full` })); }
+        if (n >= 4) { this._later(this._rtt(), () => this._emit('error', { code: ERR.TEAM_FULL, message: `Team ${want ? 'Bravo' : 'Alpha'} is full` })); }
         else { patch.team = want; patch.ready = false; }
       }
     }
@@ -223,9 +228,10 @@ export class MockNet {
   _lose(msg) {
     if (this.state === 'offline') return;
     this._reset();
+    this.errorCode = codeFromText(msg) || ERR.LOST;
     this.error = msg;
     this._setState('error');
-    this._emit('error', { message: msg });
+    this._emit('error', { code: this.errorCode, message: msg });
   }
 
   _schedule() {
@@ -341,7 +347,7 @@ export class MockNet {
   _setState(s) {
     if (this.state === s) return;
     this.state = s;
-    if (s !== 'error' && s !== 'offline') this.error = null;
+    if (s !== 'error' && s !== 'offline') { this.error = null; this.errorCode = null; }
     this._emit('state', { state: s });
   }
 

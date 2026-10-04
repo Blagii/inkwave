@@ -2,6 +2,7 @@
 // Everything is a markup string (cheap to clone via innerHTML) using currentColor / CSS classes for team ink:
 //   .iw-fa = accent/team A ink, .iw-fb = accent/team B ink (see ui.css).
 import { esc, splatShape, blobPath } from './ui-util.js';
+import { t } from '../i18n/strings.js';
 
 const K = '#15121c';        // outline ink
 const DK = '#2b2735';       // dark plastic
@@ -505,6 +506,7 @@ export const GLYPHS = {
   users: svg(`<circle cx="22" cy="22" r="9" fill="currentColor"/><circle cx="43" cy="22" r="9" fill="currentColor"/><path d="M6 52 Q6 36 22 36 Q38 36 38 52 Z M30 52 Q30 36 43 36 Q58 36 58 52 Z" fill="currentColor"/>`),
   drop: svg(`<path d="M32 6 C32 6 50 28 50 40 C50 51 42 58 32 58 C22 58 14 51 14 40 C14 28 32 6 32 6 Z" fill="currentColor"/>`),
   swords: svg(`<path d="M12 10 L40 38 M52 10 L24 38" ${G} stroke-width="6"/><path d="M34 44 L44 34 M20 34 L30 44 M42 42 L54 54 M22 42 L10 54" ${G} stroke-width="6"/>`),
+  globe: svg(`<circle cx="32" cy="32" r="24" ${G} stroke-width="5.5"/><path d="M8 32 L56 32 M32 8 Q44 20 32 32 Q20 44 32 56 Q20 44 32 32 Q44 20 32 8" ${G} stroke-width="5.5"/>`),
   hanger: svg(`<path d="M26 16 Q26 8.5 32 8.5 Q38 8.5 38 14.5 Q38 19.5 32 21.5 L32 26" ${G} stroke-width="5"/><path d="M32 25 L7 42.5 Q3.5 45.5 8.5 48 L55.5 48 Q60.5 45.5 57 42.5 Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M16 43 L48 43" stroke="var(--k, #15121c)" stroke-width="3" stroke-linecap="round" opacity=".45"/>`),
   dice: svg(`<rect x="8" y="8" width="48" height="48" rx="12" fill="currentColor" transform="rotate(-8 32 32)"/><g fill="var(--k, #15121c)" transform="rotate(-8 32 32)"><circle cx="21" cy="21" r="4.6"/><circle cx="43" cy="21" r="4.6"/><circle cx="32" cy="32" r="4.6"/><circle cx="21" cy="43" r="4.6"/><circle cx="43" cy="43" r="4.6"/></g>`),
   shirt: svg(`<path d="M23 9 L12 13 L3.5 26 L13 32.5 L17 27.5 L17 56 L47 56 L47 27.5 L51 32.5 L60.5 26 L52 13 L41 9 Q38 16.5 32 16.5 Q26 16.5 23 9 Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M17 36 L47 36" stroke="var(--k, #15121c)" stroke-width="4" opacity=".4"/>`),
@@ -584,6 +586,7 @@ export function richText(str) {
 // ------------------------------------------------------------------ logo
 /** Big display logo: letters + ink splat + animated drips. size: 'xl' | 'md' | 'sm' */
 export function logoMarkup(title = 'INKWAVE', subtitle = 'Turf Riot', size = 'xl') {
+  const sub = subtitle ? t(subtitle) : '';
   const letters = [...title].map((ch, i) => `<span class="iw-logo__l" style="--i:${i}" data-l="${esc(ch)}">${esc(ch)}</span>`).join('');
   const s = splatShape(300, 110, 88, { seed: 23, arms: 11, drops: 9, armLen: 0.55 });
   // drips hanging off the splat, grow + drop
@@ -600,7 +603,7 @@ export function logoMarkup(title = 'INKWAVE', subtitle = 'Turf Riot', size = 'xl
       ${drips}
     </svg>
     <div class="iw-logo__word">${letters}</div>
-    ${subtitle ? `<div class="iw-logo__sub"><span>${esc(subtitle)}</span></div>` : ''}
+    ${sub ? `<div class="iw-logo__sub"><span>${esc(sub)}</span></div>` : ''}
   </div>`;
 }
 
