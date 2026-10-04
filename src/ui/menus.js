@@ -181,7 +181,7 @@ const pctFmt = (v) => Math.round(v * 100) + '%';
 // Built per-screen-open (not a module const) so labels resolve in the current language (src/i18n/strings.js).
 const settingsTabs = () => [
   { id: 'general', label: t('settings.tab.general'), icon: 'globe', rows: [
-    { key: 'lang', label: t('settings.row.lang.label'), type: 'seg', options: LANGUAGES.map((l) => [l.id, l.label]), help: t('settings.row.lang.help') },
+    { key: 'lang', label: t('settings.row.lang.label'), type: 'select', options: LANGUAGES.map((l) => [l.id, l.label]), help: t('settings.row.lang.help') },
   ] },
   { id: 'controls', label: t('settings.tab.controls'), icon: 'gamepad', rows: [
     { key: 'sensitivity', label: t('settings.row.sensitivity.label'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: t('settings.row.sensitivity.help') },
@@ -523,6 +523,7 @@ export class Menus {
 
   // ================================================================ screen swapping / transitions
   _swap(name, opts) {
+    if (this._dd) this._dd.close();          // a dropdown never outlives the screen that opened it
     const old = this._scr;
     if (old) {
       safeCall(() => old.destroy && old.destroy());
@@ -671,6 +672,7 @@ export class Menus {
     const s = this._scr;
     if (!s) return false;
     if (this._starting) return true; // launching a match: ignore input under the wipe
+    if (this._dd && this._dd.nav(dir)) return true;   // an open dropdown owns the keys (↑↓ / Enter / Esc)
     if (s.onNav && s.onNav(dir)) return true;
     if (dir === 'back') { this._back(); return true; }
     if (dir === 'tab_prev' || dir === 'tab_next' || dir === 'alt') return true;
@@ -1959,7 +1961,7 @@ export class Menus {
     };
   }
 
-  // ================================================================ controls: segmented / slider / toggle
+  // ================================================================ controls: segmented / slider / toggle / select
   _seg(options, value, onChange) {
     let idx = Math.max(0, options.findIndex((o) => o[0] === value));
     const opts = options.map(([v, label], i) => {
@@ -1987,6 +1989,107 @@ export class Menus {
       cycle: () => set((idx + 1) % options.length, true),
       refresh: (v) => { const i = options.findIndex((o) => o[0] === v); if (i >= 0 && i !== idx) { idx = i; el.style.setProperty('--idx', idx); opts.forEach((o, k) => o.classList.toggle('is-sel', k === idx)); } },
     };
+  }
+
+  /** A dropdown (row type 'select'): closed it shows the current value, Enter/click opens the list, ↑↓ pick,
+   *  Enter commits, Esc/B closes. Where `_seg` runs out of room this scales to any number of options — the language
+   *  picker today, more later. While open the control owns the nav keys via `this._dd` (see _nav / _swap). */
+  _select(options, value, onChange) {
+    let idx = Math.max(0, options.findIndex((o) => o[0] === value));
+    let cur = idx, open = false;
+    const valEl = h('span', { class: 'iw-drop__val' });
+    const el = h('span', { class: 'iw-drop' }, valEl, h('i', { class: 'iw-drop__caret', html: GLYPHS.next }));
+    const scrim = h('div', { class: 'iw-drop__scrim' });
+    const list = h('div', { class: 'iw-drop__list' });
+    const opts = options.map(([, label], i) => {
+      const o = h('button', { class: 'iw-drop__opt' },
+        h('span', { class: 'iw-drop__optlab' }, label), h('i', { class: 'iw-drop__tick', html: GLYPHS.check }));
+      o.addEventListener('pointerenter', () => { if (!open || cur === i) return; cur = i; paint(); this._sfx('ui_hover', 0.5); });
+      o.addEventListener('click', (e) => { e.stopPropagation(); commit(i); });
+      return o;
+    });
+    list.append(...opts);
+    const paint = () => {
+      valEl.textContent = options[idx] ? options[idx][1] : '';
+      opts.forEach((o, i) => { o.classList.toggle('is-sel', i === idx); o.classList.toggle('is-cur', i === cur); });
+      el.classList.toggle('is-open', open);
+    };
+    // fixed positioning from the control's viewport rect: the panel scrolls/clips, the list must not.
+    // Runs twice (open + next frame): the height is only final once the list has been laid out.
+    const place = () => {
+      const r = el.getBoundingClientRect();
+      const w = Math.max(r.width, 170);
+      list.style.width = `${w}px`;
+      list.style.left = `${clamp(r.right - w, 10, Math.max(10, innerWidth - w - 10))}px`;
+      list.style.top = `${r.bottom + 8}px`;                     // default: drop down from the control
+      const hgt = list.getBoundingClientRect().height;
+      const room = innerHeight - r.bottom - 12;
+      if (hgt > room && r.top - 12 > room) list.style.top = `${Math.max(12, r.top - 8 - hgt)}px`;   // flip above when it fits better
+    };
+    const close = (back) => {
+      if (!open) return false;
+      open = false;
+      if (this._dd === api) this._dd = null;
+      scrim.remove(); list.remove();
+      paint();
+      if (back) this._sfx('ui_back');
+      return true;
+    };
+    const openList = () => {
+      if (open) return true;
+      if (this._dd) this._dd.close();
+      open = true; cur = idx;
+      this._dd = api;
+      this.el.append(scrim, list);        // outside the panel so its scroll box can't clip the list
+      paint();
+      place();
+      requestAnimationFrame(() => { if (open) place(); });     // settle once the options have their real height
+      this._sfx('ui_toggle');
+      return true;
+    };
+    const commit = (i) => {
+      const changed = i !== idx;
+      idx = i; cur = i;
+      close(false);
+      paint();
+      if (!changed) { this._sfx('ui_click'); return; }
+      this._sfx('ui_confirm');
+      onChange(options[i][0]);
+    };
+    const api = {
+      el,
+      refresh: (v) => { const i = options.findIndex((o) => o[0] === v); if (i >= 0 && i !== idx) { idx = i; cur = i; paint(); } },
+      accept: () => (open ? commit(cur) : openList()),
+      open: openList,
+      close,
+      // ←/→ step straight through the options (the settings rows advertise "adjust"); the list is for picking by sight
+      adjust: (d) => {
+        const i = (idx + d + options.length) % options.length;
+        if (open || i === idx) return;
+        idx = i; cur = i;
+        paint();
+        this._sfx('ui_toggle');
+        onChange(options[i][0]);
+      },
+      /** returns true when the open list consumed the key */
+      nav: (dir) => {
+        if (!open) return false;
+        if (dir === 'up' || dir === 'down') {
+          cur = (cur + (dir === 'up' ? -1 : 1) + options.length) % options.length;
+          paint();
+          opts[cur].scrollIntoView?.({ block: 'nearest' });
+          this._sfx('ui_toggle', 0.5);
+          return true;
+        }
+        if (dir === 'accept') { commit(cur); return true; }
+        if (dir === 'back') { close(true); return true; }
+        return true;                                  // swallow the rest (tabs, adjusts) until it closes
+      },
+    };
+    scrim.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); close(true); });
+    el.addEventListener('click', (e) => { e.stopPropagation(); if (open) close(false); else openList(); });
+    paint();
+    return api;
   }
 
   _slider(row, value) {
@@ -2084,7 +2187,7 @@ export class Menus {
       const o = (r.options || []).find((x) => x[0] === v);
       return o ? o[1] : String(v);
     };
-    const fmtVal = (r, v) => (!r ? '' : r.type === 'slider' ? r.fmt(+v) : r.type === 'toggle' ? (v ? t('common.on') : t('common.off')) : r.type === 'seg' ? optLabel(r, v).toUpperCase() : '');
+    const fmtVal = (r, v) => (!r ? '' : r.type === 'slider' ? r.fmt(+v) : r.type === 'toggle' ? (v ? t('common.on') : t('common.off')) : (r.type === 'seg' || r.type === 'select') ? optLabel(r, v).toUpperCase() : '');
     const showPreview = (key, { label, help, tab } = {}) => {
       if (P.key === key) return;
       P.key = key;
@@ -2115,6 +2218,7 @@ export class Menus {
         if (r.type === 'link') ctrl = { el: h('span', { class: 'iw-row__link' }, t('common.view'), h('i', { html: GLYPHS.next })), accept: () => { this._sfx('ui_click'); this._go('howto'); } };
         else if (r.type === 'slider') ctrl = this._slider(r, s[r.key]);
         else if (r.type === 'toggle') ctrl = this._toggle(r, s[r.key]);
+        else if (r.type === 'select') ctrl = this._select(r.options, s[r.key], (v) => this._setSetting(r.key, v));
         else {
           let options = r.options;
           if (r.key === 'difficulty') options = Object.values(this._diffs()).map((d) => [d.id, d.name]);
