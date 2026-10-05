@@ -29,6 +29,7 @@ import { Minimap } from './game/minimap.js';
 import { Showcase } from './game/showcase.js';
 import { ZoneMarks } from './fx/zoneMarks.js';
 import { BOSS_MODE } from './boss/bossMode.js';
+import { setLang, t } from './i18n/strings.js';
 
 const params = new URLSearchParams(location.search);
 // dev-only: ?devstage lets an online-only stage (config onlineOnly — Cargo Terminal) boot as the backdrop and be walked
@@ -57,6 +58,8 @@ class Game {
     // real top-down thumbnails for the stage cards, generated from each layout's geometry
     for (const m of MAPS) { try { m.thumb = layoutThumbSVG(MAP_LAYOUTS[m.layout || m.id], m.theme); } catch (e) { console.warn('thumb', m.id, e); } }
     this.settings = G.settings = loadJSON('inkwave.settings', DEFAULT_SETTINGS);
+    setLang(this.settings.lang || 'en');   // before any menu renders (src/i18n/strings.js)
+    document.title = t('INKWAVE — Turf Riot');
     // desktop app: the window's fullscreen state is owned by the native shell; mirror it into settings for the menu
     if (window.inkwaveNative) {
       this.settings.fullscreen = window.inkwaveNative.isFullScreen();
@@ -74,6 +77,7 @@ class Game {
     const [menusMod, hudMod] = await Promise.all([loadModule('./ui/menus.js'), loadModule('./ui/hud.js')]);
     this.menus = G.menus = menusMod.Menus ? new menusMod.Menus(this.uiRoot, this._menuApi()) : null;
     this.hud = G.hud = hudMod.HUD ? new hudMod.HUD(this.uiRoot, { playSound: (n, o) => G.audio?.play(n, o) }) : null;
+    this._hudMod = hudMod;   // kept so a language switch can rebuild the HUD in the new language (_rebuildHud)
     // map diorama pins/finish live inside the HUD layer (under every other HUD element)
     try { const { DioramaOverlay } = await import('./ui/diorama.js'); this.diorama = new DioramaOverlay(this.hud ? this.hud.el : this.uiRoot); } catch (e) { console.error('[inkwave] diorama', e); this.diorama = null; }
     this.hud?.setVisible(false);
@@ -398,12 +402,27 @@ class Game {
   _setSettings(partial) {
     Object.assign(this.settings, partial);
     saveJSON('inkwave.settings', this.settings);
+    if ('lang' in partial) { setLang(partial.lang); document.title = t('INKWAVE — Turf Riot'); this._rebuildHud(); }
     if ('quality' in partial || 'shadows' in partial || 'bloom' in partial) this.R?.applySettings(this.settings);
     if ('fullscreen' in partial && window.inkwaveNative) window.inkwaveNative.setFullScreen(!!partial.fullscreen);
     if ('master' in partial || 'music' in partial || 'sfx' in partial) this._applyAudioVolumes();
     if ('colorblind' in partial && G.mode !== 'match') this._setPalette(this._pickPalette());
   }
   _applyAudioVolumes() { G.audio?.setVolumes?.({ master: this.settings.master, music: this.settings.music, sfx: this.settings.sfx }); }
+
+  // The HUD's static labels are built once with the current language; a language switch rebuilds it (menus only —
+  // mid-match the old HUD stays until the next load, which is the safer trade). The TAB-map diorama mounts inside
+  // the HUD layer, so it is recreated with it.
+  async _rebuildHud() {
+    if (G.mode === 'match' || !this._hudMod?.HUD) return;
+    try {
+      this.diorama?.el?.remove();
+      this.hud?.dispose();
+      this.hud = G.hud = new this._hudMod.HUD(this.uiRoot, { playSound: (n, o) => G.audio?.play(n, o) });
+      try { const { DioramaOverlay } = await import('./ui/diorama.js'); this.diorama = new DioramaOverlay(this.hud ? this.hud.el : this.uiRoot); } catch (e) { console.error('[inkwave] diorama', e); this.diorama = null; }
+      this.hud?.setVisible(false);
+    } catch (e) { console.error('[inkwave] hud rebuild', e); }
+  }
 
   _onScreen(s) {
     // the loadout opened mid-practice sits over the live stage: tuck the HUD away while it's up
@@ -495,14 +514,14 @@ class Game {
       if (actor.isLocal || actor._nearCamera?.()) G.audio?.play('swim_splash', { pos: actor.isLocal ? undefined : actor.pos, volume: (actor.isLocal ? 0.5 : 0.32) * Math.min(1, 0.55 + (speed || 0) / 16) });
     });
     // online, humans-only stage: a player who left is gone from the match (Match.removeActor) — say so in the feed
-    on('actor:removed', ({ actor }) => { if (this.match && !this.match.attract) this.hud?.feed({ text: `${actor.name} left the match`, color: G.teamHex[actor.team], kind: 'info' }); });
+    on('actor:removed', ({ actor }) => { if (this.match && !this.match.attract) this.hud?.feed({ text: { id: '{name} left the match', params: { name: t(actor.name) } }, color: G.teamHex[actor.team], kind: 'info' }); });
     on('splatted', ({ victim, attacker, cause }) => {
       if (!this.match || this.match.attract) return;
       this._addDeathMark(victim);
       const local = this.match.local;
       if (attacker?.isLocal) {
         G.audio?.play('splat_enemy', { volume: 0.9 });
-        this.hud?.feed({ text: `You splatted ${victim.name}!`, color: G.teamHex[local.team], kind: 'kill' });
+        this.hud?.feed({ text: { id: 'You splatted {name}!', params: { name: t(victim.name) } }, color: G.teamHex[local.team], kind: 'kill' });
       } else if (victim.isLocal) {
         G.audio?.play('splatted_self');
         G.audio?.duck?.(0.45, 2.2);
@@ -514,9 +533,9 @@ class Game {
         this.rig.lookAt.copy(victim.pos);
       } else if (victim.team === local?.team) {
         G.audio?.play('ally_splatted', { volume: 0.5 });
-        this.hud?.feed({ text: `${victim.name} was splatted${attacker ? ' by ' + attacker.name : ''}`, color: G.teamHex[victim.enemyTeam], kind: 'death' });
+        this.hud?.feed({ text: attacker ? { id: '{name} was splatted by {by}', params: { name: t(victim.name), by: t(attacker.name) } } : { id: '{name} was splatted', params: { name: t(victim.name) } }, color: G.teamHex[victim.enemyTeam], kind: 'death' });
       } else if (attacker && attacker.team === local?.team) {
-        this.hud?.feed({ text: `${attacker.name} splatted ${victim.name}`, color: G.teamHex[attacker.team], kind: 'ally' });
+        this.hud?.feed({ text: { id: '{name} splatted {victim}', params: { name: t(attacker.name), victim: t(victim.name) } }, color: G.teamHex[attacker.team], kind: 'ally' });
       }
     });
     on('respawn', ({ actor }) => {
@@ -531,7 +550,7 @@ class Game {
       if (actor.isLocal && !this.match?.attract) { G.audio?.play('special_ready'); }
     });
     on('special:use', ({ actor, id }) => {
-      if (actor.isLocal && !this.match?.attract) this.hud?.banner('special', SPECIALS[id].name.toUpperCase() + '!');
+      if (actor.isLocal && !this.match?.attract) this.hud?.banner('special', t(SPECIALS[id].name).toUpperCase() + '!');
     });
     on('shake', ({ amount, pos }) => { if (!this.match?.attract) this.rig.addShake(amount, pos); });
     on('recoil', ({ amount }) => { if (!this.match?.attract) this.rig.recoil(amount); });
@@ -842,7 +861,8 @@ class Game {
   }
   // the room went away mid-match (connection lost): back to the menus with the reason
   netMatchAborted(reason) {
-    this.quitToMenu().then(() => { if (reason) this.menus?.toast?.(reason); });
+    // `reason` is an error code (src/net/errors.js) or a legacy message — menus turns it into a translatable line
+    this.quitToMenu().then(() => { if (reason) this.menus?.toast?.(this.menus?.netErrorText?.(reason) || 'Lost connection to the room'); });
   }
 
   _intro() {
@@ -1332,14 +1352,14 @@ class Game {
     if (m.state === 'playing' && a.alive) {
       if (m.controller?.mapHeld) prompt = null;   // the map diorama carries its own super-jump hints
       else if (a.superJumpState) prompt = null;
-      else if (this._lowInkFlash > 0) { this._lowInkFlash -= dt; prompt = 'Low ink! Hold SHIFT in your ink to refill'; }
-      else if (a.specialReady() && (this._hints.specialT = (this._hints.specialT || 0) + dt) > 2) prompt = `Special ready! Press F`;
-      else if (inkF < 0.25 && a.form !== 'squid') prompt = 'Hold SHIFT to swim in your ink and refill';
-      else if (m.duration - m.time < 8 && !this._hints.shot) prompt = m.zones ? 'Ink the zone and hold it to count down!' : 'Paint the ground — most turf wins!';
+      else if (this._lowInkFlash > 0) { this._lowInkFlash -= dt; prompt = { id: 'Low ink! Hold SHIFT in your ink to refill' }; }
+      else if (a.specialReady() && (this._hints.specialT = (this._hints.specialT || 0) + dt) > 2) prompt = { id: 'Special ready! Press F' };
+      else if (inkF < 0.25 && a.form !== 'squid') prompt = { id: 'Hold SHIFT to swim in your ink and refill' };
+      else if (m.duration - m.time < 8 && !this._hints.shot) prompt = m.zones ? { id: 'Ink the zone and hold it to count down!' } : { kind: 'turfTip', id: 'Paint the ground — most turf wins!' };
       if (!a.specialReady()) this._hints.specialT = 0;
       if (a.intent.fire) this._hints.shot = true;
     }
-    if (m.practice && m.state === 'playing' && a.alive && this._hintT < 7) prompt = 'Practice · L to change loadout · ESC for the practice menu';
+    if (m.practice && m.state === 'playing' && a.alive && this._hintT < 7) prompt = { id: 'Practice · L to change loadout · ESC for the practice menu' };
     const strikeAim = !!(a.specialActive && a.specialActive.id === 'strike' && a.specialActive.aiming);
     // "Yeah!" cheers → screen positions over the cheering player (anyone on screen)
     const cheers = [];
@@ -1364,7 +1384,7 @@ class Game {
       this.minimap.toCanvas(d.x, d.z, t); d.mx = t.x / this.minimap.w; d.my = t.y / this.minimap.h;
     }
     if (a.specialActive && m.state === 'playing' && a.alive) prompt = G.specials.prompt(a) || prompt;
-    else if (m.state === 'playing' && a.alive && m.actors.some((o) => o !== a && o.team === a.team && o.specialActive?.id === 'booyah' && !o.specialActive.thrown)) prompt = 'A teammate is charging a Cheer Orb — press C to cheer it on!';
+    else if (m.state === 'playing' && a.alive && m.actors.some((o) => o !== a && o.team === a.team && o.specialActive?.id === 'booyah' && !o.specialActive.thrown)) prompt = { id: 'A teammate is charging a Cheer Orb — press C to cheer it on!' };
     const frame = {
       time: m.practice ? null : m.time,
       teams: a.team === 1 ? m.teamSummary().reverse() : m.teamSummary(),   // HUD: [your team, theirs]
@@ -1395,5 +1415,5 @@ const game = new Game();
 game.boot().catch((e) => {
   console.error(e);
   const el = document.getElementById('boot-error');
-  if (el) { el.textContent = 'Something went wrong while loading: ' + e.message; el.style.display = 'block'; }
+  if (el) { el.textContent = t('Something went wrong while loading') + ': ' + e.message; el.style.display = 'block'; }
 });

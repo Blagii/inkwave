@@ -16,7 +16,9 @@ G.net.code       // 'K7QXM' while in a room, else null
 G.net.myId       // this player's id in the room
 G.net.hostId
 G.net.isHost     // boolean
-G.net.error      // last error message (string) or null
+G.net.errorCode  // stable failure code: ERR_NOT_FOUND | ERR_FULL | ERR_TEAM_FULL | ERR_IN_PROGRESS | ERR_CODE_TAKEN
+                 //   | ERR_CONNECT | ERR_LOST | ERR_MATCH_START | ERR_STALE — logic keys off this (src/net/errors.js)
+G.net.error      // English fallback text for the same failure (logs / unknown codes), or null. Never compare on it.
 G.net.lobby = {
   map: 'tidewater', time: 'day' | 'dusk', duration: 180, bots: true, difficulty: 'normal', mode: 'turf' | 'zones' | 'boss',
   players: [{ id, name, team: 0 | 1, weapon, sub, special, style, ready, host, you, ping }],   // stable order: join order
@@ -25,7 +27,7 @@ G.net.lobby = {
 
 // actions (all safe to call in any state; invalid ones are ignored)
 await G.net.create(name)          // → code; state goes connecting → lobby (you are host)
-await G.net.join(code, name)      // rejects with Error('Room not found' | 'Room is full' | 'Match in progress' | 'Could not connect')
+await G.net.join(code, name)      // rejects with a NetError carrying .code (see errorCode above); .message is English fallback text
 G.net.leave()                     // back to 'offline'
 G.net.setMe({ name, weapon, sub, special, style, ready, team })   // any subset; team: 0 | 1 | 'auto'
 G.net.setSettings({ map, time, duration, bots, difficulty, mode })   // host only (Zone Control always runs 5:00 + overtime)
@@ -36,7 +38,7 @@ G.net.on(event, fn) → unsubscribe
 //   'state'  { state }                 any state change
 //   'lobby'  { lobby }                 settings / players changed (fires after join / leave / setMe / setSettings)
 //   'join'   { player }                'leave' { player, reason }       'host' { hostId }   (host migrated)
-//   'emote'  { id, name }              'error'  { message }
+//   'emote'  { id, name }              'error'  { code, message }   (code = errorCode; menus shows it via its i18n table)
 //   'match'  { phase: 'start' | 'end' }  match launched / ended (results shown, then everyone returns to 'lobby')
 ```
 

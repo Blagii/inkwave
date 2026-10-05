@@ -458,6 +458,38 @@
 .iw-toggle.is-on .iw-toggle__off { opacity: 0; }
 .iw-toggle.is-on .iw-toggle__on { opacity: 1; }
 
+/* dropdown (row type 'select'): the closed control; the open list is fixed-positioned and lives on .iw-ui so the
+   settings panel's own box can never clip it (see Menus._select) */
+.iw-drop { position: relative; display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * .8);
+  min-width: calc(var(--u) * 17); padding: calc(var(--u) * .62) calc(var(--u) * .9) calc(var(--u) * .62) calc(var(--u) * 1.2); border-radius: 999px;
+  background: rgba(0, 0, 0, .5); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .1), inset 0 3px 6px rgba(0, 0, 0, .35);
+  font: 800 var(--fs-s) / 1 'Rubik', sans-serif; letter-spacing: .06em; color: rgba(255, 255, 255, .92); cursor: pointer;
+  transition: background .2s, box-shadow .2s; }
+.iw-drop:hover { color: #fff; }
+.iw-row.is-focus .iw-drop { background: rgba(0, 0, 0, .58); box-shadow: inset 0 0 0 2px rgba(var(--a-rgb), .8), inset 0 3px 6px rgba(0, 0, 0, .35); }
+.iw-drop.is-open { box-shadow: inset 0 0 0 2px var(--a), inset 0 3px 6px rgba(0, 0, 0, .35); }
+.iw-row__ctrl .iw-drop { min-width: calc(var(--u) * 25); }
+.iw-drop__val { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.iw-drop__caret { display: block; flex: none; width: 1.35em; height: 1.35em; rotate: 90deg; color: var(--a); transition: rotate .25s var(--spring); }
+.iw-drop__caret svg { width: 100%; height: 100%; }
+.iw-drop.is-open .iw-drop__caret { rotate: -90deg; }
+.iw-drop__scrim { position: fixed; inset: 0; z-index: 60; pointer-events: auto; }
+.iw-drop__list { position: fixed; z-index: 61; pointer-events: auto; display: flex; flex-direction: column; gap: calc(var(--u) * .25);
+  max-height: min(58vh, calc(var(--u) * 44)); overflow-y: auto; padding: calc(var(--u) * .5); border-radius: calc(var(--u) * 1.2);
+  background: linear-gradient(170deg, rgba(38, 31, 58, .97), rgba(18, 14, 30, .99));
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .12), 0 calc(var(--u) * .45) 0 rgba(0, 0, 0, .38), 0 calc(var(--u) * 1.4) calc(var(--u) * 3) rgba(0, 0, 0, .34);
+  backdrop-filter: blur(14px) saturate(1.3); animation: iw-drop-in .2s var(--spring) both; transform-origin: 50% 0; }
+@keyframes iw-drop-in { from { opacity: 0; scale: .94 .8; } }
+.iw-drop__opt { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 1.4); width: 100%; border: 0;
+  padding: calc(var(--u) * .7) calc(var(--u) * 1); border-radius: calc(var(--u) * .8); background: transparent; text-align: left;
+  font: 700 var(--fs-m) / 1.15 'Rubik', sans-serif; color: rgba(255, 255, 255, .82); cursor: pointer; transition: background .15s, color .15s; }
+.iw-drop__opt.is-cur { background: rgba(255, 255, 255, .1); color: #fff; }
+.iw-drop__opt.is-sel { color: var(--a-light, var(--a)); }
+.iw-drop__optlab { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.iw-drop__tick { display: block; flex: none; width: 1.5em; height: 1.5em; color: var(--a); opacity: 0; transition: opacity .15s; }
+.iw-drop__opt.is-sel .iw-drop__tick { opacity: 1; }
+.iw-drop__tick svg { width: 100%; height: 100%; }
+
 .iw-tabs { position: relative; display: flex; align-items: center; gap: calc(var(--u) * .4); padding: calc(var(--u) * .4); border-radius: calc(var(--u) * 1.3); background: rgba(0, 0, 0, .38); margin-bottom: calc(var(--u) * 1.3); }
 .iw-tabs__hl { position: absolute; left: 0; top: calc(var(--u) * .4); bottom: calc(var(--u) * .4); width: 0; border-radius: calc(var(--u) * .95); pointer-events: none;
   background: linear-gradient(180deg, var(--a-light) -40%, var(--a) 50%); box-shadow: 0 3px 0 var(--a-deep), inset 0 -2px 0 rgba(0, 0, 0, .12);
@@ -1129,6 +1161,7 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
   .iw-logo__l, .iw-drip path, .iw-drip__drop, .iw-bgblob, .iw-cursor__ring, .iw-btn--primary::before, .iw-res__splat svg, .iw-cred__endsplat, .iw-title__presstext { animation: none !important; }
   .iw-in, .iw-rowin { animation-duration: .2s !important; animation-delay: 0s !important; }
   .iw-wipe__mark { display: none; }
+  .iw-drop__list { animation: none !important; }
 }
 
 /* lab/debug: freeze or slow every animation (set by tools/ui-lab.js) */

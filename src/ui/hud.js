@@ -28,7 +28,7 @@
 //   percents            accepted as 0..100 or 0..1.
 // Boss mode (docs/BOSS.md): src/ui/hud-boss.js (hud.boss) adds the boss bar / title card / callouts / damage numbers and
 // the endings; the roster slots show the 8-kid squad in squad ink. It switches on match.mode === 'boss' or boss:spawn.
-import { h, clamp, colorVars, toHex, fmtTime, fmtInt, splatSVG, splatShape, pct, shade, lerp, easeOutBack, easeOutCubic, restartAnim, prefersReducedMotion } from './ui-util.js';
+import { h, clamp, colorVars, toHex, fmtTime, fmtInt, splatSVG, splatShape, pct, shade, lerp, easeOutBack, easeOutCubic, restartAnim, prefersReducedMotion, msgText, msgKey } from './ui-util.js';
 import { SQUID, SPLAT_ICON, DEATH_ICON, GLYPHS, SUB_ICONS, WEAPON_ICONS, richText, keycap, specialIcon, weaponIcon } from './ui-icons.js';
 import { WEAPONS, SPECIALS, TEAM_NAMES, SUB, PLAYER, MATCH, ZONES } from '../config.js';
 import { on, G } from '../core/ctx.js';
@@ -36,6 +36,7 @@ import { SFX } from '../audio/audio.js';
 import { BossHud } from './hud-boss.js';
 import { installBossAudio } from '../audio/bossAudio.js';
 import { bossEmblem, BOSS_NAME, BOSS_EPITHET } from './boss-art.js';
+import { t } from '../i18n/strings.js';
 
 let HUD_ID = 0;
 const BUMP = { duration: 320, easing: 'cubic-bezier(.34,1.8,.64,1)' };
@@ -283,7 +284,7 @@ export class HUD {
       h('div', { class: 'iw-lg__title iw-display' }, 'SUPER JUMP'),
       h('div', { class: 'iw-lg__sub' }, 'Pick a landing spot'),
       h('div', { class: 'iw-lg__rows' }, this.legendRows),
-      h('div', { class: 'iw-lg__foot', html: richText('Press [1] – [4] or click · release [TAB] to cancel') }));
+      h('div', { class: 'iw-lg__foot', html: richText(t('Press [1] – [4] or click · release [TAB] to cancel')) }));
     this.map = h('div', { class: 'iw-map' }, this.mapFrame, this.mapJumpLine, h('div', { class: 'iw-map__bcns' }, this.beacons), this.mapCursor, this.mapLabel, this.mapLegend);
     this.mapDim = h('div', { class: 'iw-map-dim' });
     this._mapT = 0; this._mapV = 0;
@@ -339,7 +340,7 @@ export class HUD {
     this.el.classList.toggle('is-practice', on);
     this.timer.classList.remove('is-last', 'is-final');
     this._L.fin = false; this._L.lastMin = false; this._L.timer = null;
-    this.timerTxt.textContent = on ? 'PRACTICE' : '3:00';
+    this.timerTxt.textContent = on ? t('PRACTICE') : '3:00';
   }
 
   /** ScreenFX takes over the lens-ink damage smears, the low-HP vignette and the splatted desaturation. */
@@ -452,7 +453,7 @@ export class HUD {
     const icon = kind === 'kill' ? SPLAT_ICON : kind === 'death' ? DEATH_ICON : kind === 'ally' ? SQUID : GLYPHS.drop;
     const el = h('div', { class: `iw-feed__item iw-feed__item--${kind}` },
       h('span', { class: 'iw-feed__icon', html: icon }),
-      h('span', { class: 'iw-feed__text', html: richText(text) }));
+      h('span', { class: 'iw-feed__text', html: richText(msgText(text)) }));
     colorVars(el, 'c', toHex(color, '#ffffff'));
     this.feedEl.prepend(el);
     const items = [...this.feedEl.querySelectorAll('.iw-feed__item:not(.is-out)')];
@@ -494,7 +495,7 @@ export class HUD {
           by ? h('div', { class: 'iw-spl__name iw-display' }, String(by)) : null,
           why && why.name ? h('div', { class: `iw-spl__wn iw-spl__wn--${why.kind}` }, why.tag ? h('i', { class: 'iw-spl__wk' }, why.tag) : null, why.name) : null),
         ring),
-      (hint = h('div', { class: 'iw-spl__hint', html: richText('Hold [TAB] to plan a Super Jump') })));
+      (hint = h('div', { class: 'iw-spl__hint', html: richText(t('Hold [TAB] to plan a Super Jump')) })));
     colorVars(el, 'by', toHex(byColor, '#2f5bff'));
     this.splatLayer.appendChild(el);
     const st = { el, tint, hint, qkey: '', end: this._fxTime + Math.max(0, respawn), num, last: Math.ceil(respawn) };
@@ -505,7 +506,7 @@ export class HUD {
       const n = Math.max(0, Math.ceil(st.t));
       if (n !== st.last) {
         st.last = n;
-        num.textContent = n > 0 ? String(n) : 'GO';
+        num.textContent = n > 0 ? String(n) : t('GO');
         num.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], BUMP);
         if (n > 0 && n <= 3) this._snd('countdown_tick', { volume: 0.5 });
       }
@@ -538,7 +539,7 @@ export class HUD {
       const barB = h('div', { class: 'iw-jd__bar b' });
       const edgeA = h('i', { class: 'iw-jd__edge a' }), edgeB = h('i', { class: 'iw-jd__edge b' });
       const clash = h('div', { class: 'iw-jd__clash', html: splatSVG({ seed: 99, fill: '#fff', r: 50, arms: 10, drops: 8 }) });
-      const wText = winner < 0 ? "IT'S A TIE!" : `${(names[winner] || TEAM_NAMES[winner] || '').toUpperCase()} WINS!`;
+      const wText = winner < 0 ? t("IT'S A TIE!") : t('{team} WINS!', { team: t(names[winner] || TEAM_NAMES[winner] || '') });
       const win = h('div', { class: 'iw-jd__win' + (winner === 1 ? ' is-b' : winner === 0 ? ' is-a' : ' is-tie') },
         h('div', { class: 'iw-jd__winsplat', html: splatSVG({ seed: 5, cls: 'iw-fwin', r: 58, arms: 11, drops: 5 }) }),
         h('div', { class: 'iw-jd__wintext iw-display' }, wText));
@@ -712,8 +713,8 @@ export class HUD {
       else if (multi >= 2) call = STREAKS[Math.min(4, multi)];
       else if (!K.first) { call = 'FIRST SPLAT!'; }
       else if (K.lastKiller && victim === K.lastKiller) { call = 'REVENGE!'; K.lastKiller = null; }
-      else if (vStreak >= 3) { call = 'SHUTDOWN!'; sub = `Ended ${victim.name}'s streak`; }
-      else if (K.streak >= 3 && K.streak % 2 === 1) { call = `SPLAT STREAK ×${K.streak}`; }
+      else if (vStreak >= 3) { call = 'SHUTDOWN!'; sub = t("Ended {name}'s streak", { name: t(victim.name) }); }
+      else if (K.streak >= 3 && K.streak % 2 === 1) { call = t('SPLAT STREAK ×{n}', { n: K.streak }); }
       K.first = true;
       if (call) this._callout(call, sub, multi >= 3 || call === 'WIPEOUT!');
       return;
@@ -782,7 +783,7 @@ export class HUD {
       // boss mode: the whole squad (two columns) vs HULLBREAKER
       const squad = side(0);
       squad.classList.add('is-squad');
-      squad.querySelector('.iw-lu__name').textContent = 'YOUR SQUAD';
+      squad.querySelector('.iw-lu__name').textContent = t('YOUR SQUAD');
       const foe = h('div', { class: 'iw-lu__team iw-lu__team--b iw-lu__foe' },
         h('div', { class: 'iw-lu__name iw-display' }, BOSS_NAME),
         h('div', { class: 'iw-lu__bosscard' }, h('span', { class: 'iw-lu__bossart', html: bossEmblem() }), h('small', null, BOSS_EPITHET)));
@@ -860,7 +861,7 @@ export class HUD {
         e.el.style.setProperty('--c', this._teamHex(d.team));
         const named = !!(d.ally && !d.local);          // a teammate's name under theirs (not your own)
         e.el.classList.toggle('is-ally', named);
-        e.name.textContent = named ? d.name : '';
+        e.name.textContent = named ? t(d.name) : '';
         this._restart(e.el, 'is-new');
       }
       const key = `${d.sx.toFixed(1)}|${d.sy.toFixed(1)}|${d.sc.toFixed(3)}|${d.k.toFixed(2)}`;
@@ -899,7 +900,7 @@ export class HUD {
     st.qkey = key;
     const hint = st.hint;
     hint.classList.toggle('is-queued', !!q);
-    if (!q) { hint.innerHTML = richText('Hold [TAB] to plan a Super Jump'); return; }
+    if (!q) { hint.innerHTML = richText(t('Hold [TAB] to plan a Super Jump')); return; }
     hint.textContent = '';
     hint.append(
       h('i', { class: 'iw-spl__sj', html: SJ_ICON }),
@@ -992,7 +993,7 @@ export class HUD {
         el.style.setProperty('--sb', clamp(q.share?.[1] || 0).toFixed(3));
         el.classList.toggle('is-held', q.owner === 0 || q.owner === 1);
       });
-      this.zoLabel.textContent = this._zLabel(z.active, me);
+      this.zoLabel.textContent = t(this._zLabel(z.active, me));
       const held = z.owner === 0 || z.owner === 1;
       this.zo.style.setProperty('--zo', held ? this._zHex(z.owner) : '#ffffff');
       this.zo.classList.toggle('is-held', held);
@@ -1056,7 +1057,7 @@ export class HUD {
   _zPenalty({ team, penalty }) {
     if (!this._zLive() || !(penalty > 0) || (team !== 0 && team !== 1)) return;
     const me = this._zMe();
-    this._zCall(`PENALTY +${Math.round(penalty)}`, { team, sub: team === me ? 'WE COUNT IT OFF FIRST' : 'THEY COUNT IT OFF FIRST', small: true, kind: 'pen' });
+    this._zCall(t('PENALTY +{n}', { n: Math.round(penalty) }), { team, sub: team === me ? 'WE COUNT IT OFF FIRST' : 'THEY COUNT IT OFF FIRST', small: true, kind: 'pen' });
     this._snd('zone_penalty', { volume: team === me ? 0.9 : 0.65, pitch: team === me ? 0.94 : 1.06 });
   }
   _zActive({ objective, final, moved }) {
@@ -1065,7 +1066,7 @@ export class HUD {
     // the last 30 s lock (zones.js): a note, and the shift call-out only if it actually moved the objective
     if (final) { this.banner('one_minute', 'FINAL 30 — CENTRE ONLY'); this._snd('zone_final'); }
     if (moved === false) return;
-    this._zCall(`ZONE SHIFTED → ${this._zLabel(objective, this._zMe())}`, { kind: 'shift' });
+    this._zCall(t('ZONE SHIFTED → {zone}', { zone: t(this._zLabel(objective, this._zMe())) }), { kind: 'shift' });
     if (!final) this._snd('zone_shift');
     this._restart(this.zo, 'is-moved');
   }
@@ -1107,12 +1108,12 @@ export class HUD {
           h('span', { class: 'iw-jd__name' }, names[t] || TEAM_NAMES[t]),
           h('div', { class: 'iw-jz__badge' }, h('span', { class: 'iw-jz__plate' }), num, pen[t] > 0 ? h('span', { class: 'iw-jz__pen' }, `+${pen[t]}`) : null),
           h('div', { class: 'iw-jz__bar' }, fill, penBar),
-          h('small', { class: 'iw-jz__cap' }, pen[t] > 0 ? `COUNT LEFT · +${pen[t]} PENALTY` : 'COUNT LEFT'));
+          h('small', { class: 'iw-jz__cap' }, pen[t] > 0 ? t('COUNT LEFT · +{n} PENALTY', { n: pen[t] }) : 'COUNT LEFT'));
         return { el, num, fill, penBar };
       };
       const A = side(0), B = side(1);
       const sub = ko ? '' : ({ comeback: 'OVERTIME COMEBACK!', retake: 'RETAKEN IN OVERTIME', neutralised: 'HELD ON THROUGH OVERTIME', 'overtime-cap': 'OVERTIME LIMIT' }[reason] || (overtime ? 'OVERTIME' : ''));
-      const wText = win < 0 ? "IT'S A TIE!" : `${(names[win] || TEAM_NAMES[win] || '').toUpperCase()} WINS!`;
+      const wText = win < 0 ? t("IT'S A TIE!") : t('{team} WINS!', { team: t(names[win] || TEAM_NAMES[win] || '').toUpperCase() });
       const el = h('div', { class: 'iw-jd iw-jz' + (ko ? ' is-ko' : '') },
         h('div', { class: 'iw-jd__bg' }),
         h('div', { class: 'iw-jd__title iw-display' }, h('span', null, 'FINAL COUNT')),
@@ -1457,7 +1458,7 @@ export class HUD {
     if (f.subKind && subKey !== L.subKey) {
       L.subKey = subKey;
       this.subChip.firstChild.innerHTML = SUB_ICONS[f.subKind] || SUB_ICONS.bomb;
-      this.subChip.lastChild.textContent = f.subCost === 0 ? 'FREE' : `${Math.round((f.subCost ?? 0.7) * 100)}%`;
+      this.subChip.lastChild.textContent = f.subCost === 0 ? t('FREE') : `${Math.round((f.subCost ?? 0.7) * 100)}%`;
     }
     const tr = !!f.tracked, po = !!f.poisoned;
     if (tr !== L.stTr) { L.stTr = tr; this.statusEl.classList.toggle('show-tracked', tr); }
@@ -1707,8 +1708,8 @@ export class HUD {
     if (strike !== L.mapStrike) {
       L.mapStrike = strike;
       this.map.classList.toggle('is-strike', strike);
-      this.mapLegend.querySelector('.iw-lg__title').textContent = strike ? 'VORTEX STRIKE' : 'SUPER JUMP';
-      this.mapLegend.querySelector('.iw-lg__sub').textContent = strike ? 'Move the mouse to aim · click to launch' : 'Pick a landing spot';
+      this.mapLegend.querySelector('.iw-lg__title').textContent = t(strike ? 'VORTEX STRIKE' : 'SUPER JUMP');
+      this.mapLegend.querySelector('.iw-lg__sub').textContent = t(strike ? 'Move the mouse to aim · click to launch' : 'Pick a landing spot');
     }
     // the big map only opens during live play (the controller's TAB state can stay latched through time's up)
     const target = m.expanded && (this.lab || !G.match || G.match.state === 'playing') ? 1 : 0;
@@ -1730,9 +1731,9 @@ export class HUD {
     const asp = (m.canvas.width || 1) / (m.canvas.height || 1);
     const fit = (sz) => (asp >= 1 ? [sz, sz / asp] : [sz * asp, sz]);
     const [w0, h0] = fit(14.5 * u), [w1, h1] = fit(Math.min(H * 0.78, W * 0.6));
-    const t = this._mapT;
-    const bw = lerp(w0, w1, t), bh = lerp(h0, h1, t);
-    const x = lerp(2.2 * u, (W - w1) / 2, t), y = lerp(H - 2.2 * u - h0, (H - h1) / 2 + u * 1.2, t);
+    const mt = this._mapT;
+    const bw = lerp(w0, w1, mt), bh = lerp(h0, h1, mt);
+    const x = lerp(2.2 * u, (W - w1) / 2, mt), y = lerp(H - 2.2 * u - h0, (H - h1) / 2 + u * 1.2, mt);
     const inside = (W - w1) / 2 < 22 * u;
     if (inside !== L.lgIn) { L.lgIn = inside; this.mapLegend.classList.toggle('is-inside', inside); }
     const box = `${x.toFixed(1)},${y.toFixed(1)},${bw.toFixed(1)},${bh.toFixed(1)}`;
@@ -1851,10 +1852,10 @@ export class HUD {
       else stem.style.display = 'none';
       el.classList.toggle('is-off', !b.ok || !canJump);
       el.classList.toggle('is-hover', M.hover === i && b.ok && canJump);
-      if (b.dev) el.querySelector('.iw-bcn__label b').textContent = b.name;
+      if (b.dev) el.querySelector('.iw-bcn__label b').textContent = t(b.name);
       else if (!b.home) {
         if (el._w !== b.weapon) { el._w = b.weapon; el.querySelector('.iw-bcn__icon').innerHTML = weaponIcon(kindOf(b.weapon)); }
-        el.querySelector('.iw-bcn__label b').textContent = b.ok ? b.name : `${b.name} · ${b.respawn || '…'}`;
+        el.querySelector('.iw-bcn__label b').textContent = b.ok ? t(b.name) : `${t(b.name)} · ${b.respawn || '…'}`;
       }
     }
     // dashed jump arc from you to the hovered beacon
@@ -1877,8 +1878,8 @@ export class HUD {
     row.classList.toggle('is-empty', !b);
     if (!b) return;
     if (!b.home && !b.dev && row._w !== b.weapon) { row._w = b.weapon; row.querySelector('.iw-lg__w').innerHTML = weaponIcon(kindOf(b.weapon)); }
-    row.querySelector('.iw-lg__name').textContent = b.name;
-    const st = !canJump ? '—' : b.ok ? 'READY' : b.respawn ? `${b.respawn}s` : 'BUSY';
+    row.querySelector('.iw-lg__name').textContent = t(b.name);
+    const st = !canJump ? '—' : b.ok ? t('READY') : b.respawn ? `${b.respawn}s` : t('BUSY');
     row.querySelector('.iw-lg__st').textContent = st;
     row.classList.toggle('is-off', !b.ok || !canJump);
     row.classList.toggle('is-hover', M.hover === i && b.ok && canJump);
@@ -1919,7 +1920,7 @@ export class HUD {
       if (prev === 'x' || !prev) el.style.display = '';
       if (el._name !== m.name) {
         el._name = m.name;
-        el.querySelector('.iw-mk__tag b').textContent = m.name || '';
+        el.querySelector('.iw-mk__tag b').textContent = m.name ? t(m.name) : '';
         const w = (ac && ac.weaponId) || m.weapon;
         el.querySelector('.iw-mk__w').innerHTML = w ? weaponIcon(kindOf(w)) : '';
       }
@@ -1927,7 +1928,7 @@ export class HUD {
       if (el._col !== col) { el._col = col; colorVars(el, 'c', col); }
       if (el._on !== on) { el._on = on; el.classList.toggle('is-off', !on); }
       if (el._ready !== ready) { el._ready = ready; el.classList.toggle('is-ready', ready); }
-      if (el._tracked !== !!m.tracked) { el._tracked = !!m.tracked; el.classList.toggle('is-tracked', !!m.tracked); if (m.tracked) el.querySelector('.iw-mk__tag b').textContent = `${m.name} · TRACKED`; }
+      if (el._tracked !== !!m.tracked) { el._tracked = !!m.tracked; el.classList.toggle('is-tracked', !!m.tracked); if (m.tracked) el.querySelector('.iw-mk__tag b').textContent = t('{name} · TRACKED', { name: t(m.name) }); }
       el.style.setProperty('--far', far.toFixed(2));
       el.style.transform = `translate3d(${(+m.x).toFixed(1)}px,${(+m.y).toFixed(1)}px,0)`;
       if (!on) el.lastChild.style.transform = `rotate(${(+m.angle || 0).toFixed(3)}rad)`;
@@ -1937,10 +1938,11 @@ export class HUD {
   _updPrompt(p) {
     const L = this._L;
     const v = p || null;
-    if (v === L.prompt) return;
-    L.prompt = v;
+    const key = msgKey(v);                 // descriptors are rebuilt every frame: compare by value, not by reference
+    if (key === L.prompt) return;
+    L.prompt = key;
     if (!v) { this.promptEl.classList.add('is-out'); return; }
-    this.promptEl.innerHTML = richText(v);
+    this.promptEl.innerHTML = richText(msgText(v));
     this.promptEl.classList.remove('is-out');
     this.promptEl.animate([{ transform: 'translateX(-50%) translateY(12px) scale(.85)', opacity: 0 }, { transform: 'translateX(-50%) translateY(0) scale(1)', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(.34,1.56,.64,1)' });
   }

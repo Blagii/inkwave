@@ -140,7 +140,7 @@ hud.update(dt, frame)        // every frame while in a match, frame = HudFrame
 hud.banner(kind, text)       // 'ready' 'go' 'one_minute' 'timesup' 'special' 'custom'
 hud.countdown(n)             // big final-10s numbers
 hud.hitMarker('hit'|'kill')
-hud.feed({ text, color, kind: 'kill'|'death'|'ally'|'info' })
+hud.feed({ text, color, kind: 'kill'|'death'|'ally'|'info' })   // text: i18n message id, or { id, params } with interpolated names
 hud.damage(amount0to1, colorHex)     // enemy-ink smear on screen edges, fades over ~1.5s
 hud.showSplatted({ by, byColor, respawn })  // death overlay + countdown ring
 hud.hideSplatted()
@@ -157,7 +157,8 @@ HudFrame:
   crosshair: { spread, onTarget },        // spread px; onTarget: 'enemy' | null
   map: { canvas, expanded, players:[{ x, y, team, isSelf, yaw, alive }] }, // canvas drawn by core; x,y in 0..1 canvas space
   markers: [ { x, y, name, color, onScreen, angle } ],   // ally name tags (screen px) / edge arrows
-  prompt: string|null,                    // contextual hint, e.g. 'Hold SHIFT to swim'
+  prompt: string|null,                    // contextual hint: an i18n message id, or { id, params, kind? } for lines with
+                                          // interpolated names/numbers (kind tags it for the boss HUD, e.g. 'turfTip')
   fps }
 ```
 ResultsData:

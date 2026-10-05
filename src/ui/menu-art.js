@@ -6,9 +6,10 @@
 //   InkWipe(host, { isFrozen })  .run({ a, b, mode:'full'|'light'|'fade', dir, onMid, onDone })
 //   createPreview(key, ctx) → { el, set(value, settings), tick(dt) }       — settings live previews
 import {
-  h, clamp, lerp, easeInOutCubic, easeOutBack, easeOutCubic, rng, splatShape, splatSVG, shade, fmtInt, safeCall,
+  h, clamp, lerp, easeInOutCubic, easeOutBack, easeOutCubic, rng, splatShape, splatSVG, shade, fmtInt, safeCall, esc,
 } from './ui-util.js';
 import { SQUID, SQUID_PATH, GLYPHS, WEAPON_ICONS, SPLAT_ICON, SPECIAL_ICONS, mouseGlyph, padGlyph, keycap } from './ui-icons.js';
+import { t, LANGUAGES } from '../i18n/strings.js';
 
 const K = '#15121c';
 const TAU = Math.PI * 2;
@@ -85,21 +86,21 @@ export function computeBossAwards(players = []) {
   const maxOf = (k) => (P.length ? Math.max(...P.map((p) => p[k])) : 0);
   if (P.length) {
     const md = maxOf('dmg'), mw = maxOf('weak'), ms = maxOf('splats'), mt = maxOf('turf'), mD = Math.max(1, maxOf('deaths'));
-    if (md > 0) P.filter((p) => p.dmg === md).forEach((p) => give(p, 'heavy', `${fmtInt(p.dmg)} damage`));
-    if (mw >= 3) P.filter((p) => p.weak === mw).forEach((p) => give(p, 'crit', `${mw} weak-point hits`));
-    if (ms >= 2) P.filter((p) => p.splats === ms).forEach((p) => give(p, 'brood', `${ms} crablets`));
-    if (mt > 0) P.filter((p) => p.turf === mt).forEach((p) => give(p, 'cleaner', `${fmtInt(p.turf)}p inked`));
+    if (md > 0) P.filter((p) => p.dmg === md).forEach((p) => give(p, 'heavy', t('{n} damage', { n: fmtInt(p.dmg) })));
+    if (mw >= 3) P.filter((p) => p.weak === mw).forEach((p) => give(p, 'crit', t('{n} weak-point hits', { n: mw })));
+    if (ms >= 2) P.filter((p) => p.splats === ms).forEach((p) => give(p, 'brood', t('{n} crablets', { n: ms })));
+    if (mt > 0) P.filter((p) => p.turf === mt).forEach((p) => give(p, 'cleaner', t('{n}p inked', { n: fmtInt(p.turf) })));
     const active = P.filter((p) => p.dmg > 0 || p.turf >= 30);
     const zero = active.filter((p) => p.deaths === 0);
-    if (zero.length && zero.length <= 3) zero.forEach((p) => give(p, 'unsinkable', 'Never splatted'));
+    if (zero.length && zero.length <= 3) zero.forEach((p) => give(p, 'unsinkable', t('Never splatted')));
     else if (!zero.length && active.length) {
       const m = Math.min(...active.map((p) => p.deaths));
       const s = active.filter((p) => p.deaths === m);
-      if (s.length === 1) give(s[0], 'survivor', `Splatted ${m}×`);
+      if (s.length === 1) give(s[0], 'survivor', t('Splatted {n}×', { n: m }));
     }
     const score = (p) => p.dmg / Math.max(1, md) + 0.35 * (p.weak / Math.max(1, mw)) + 0.2 * (p.splats / Math.max(1, ms)) + 0.15 * (p.turf / Math.max(1, mt)) - 0.25 * (p.deaths / mD);
     const cand = P.filter((p) => p.dmg > 0 || p.turf > 0);
-    if (cand.length) give(cand.reduce((b, p) => (score(p) > score(b) + 1e-9 ? p : b)), 'mvp', 'Top all-round score');
+    if (cand.length) give(cand.reduce((b, p) => (score(p) > score(b) + 1e-9 ? p : b)), 'mvp', t('Top all-round score'));
     for (const list of by) list.sort((x, y) => BOSS_ORDER.indexOf(x.id) - BOSS_ORDER.indexOf(y.id));
   }
   return { byPlayer: by, match: [] };
@@ -122,28 +123,28 @@ export function computeAwards(players = [], { win = true, percents = [50, 50] } 
     // Turf King — most turf in the lobby (ties share the crown)
     const mt = maxOf('turf');
     const kings = mt > 0 ? P.filter((p) => p.turf === mt) : [];
-    kings.forEach((p) => give(p, 'turf', `${fmtInt(p.turf)}p inked`));
+    kings.forEach((p) => give(p, 'turf', t('{n}p inked', { n: fmtInt(p.turf) })));
     // Top Inker — best painter on each team that doesn't already hold the crown
-    for (const t of [0, 1]) {
-      const team = P.filter((p) => p.team === t);
+    for (const tm of [0, 1]) {
+      const team = P.filter((p) => p.team === tm);
       if (!team.length || team.some((p) => kings.includes(p))) continue;
       const m = maxOf('turf', team);
-      if (m > 0) team.filter((p) => p.turf === m).forEach((p) => give(p, 'inker', `${fmtInt(p.turf)}p inked`));
+      if (m > 0) team.filter((p) => p.turf === m).forEach((p) => give(p, 'inker', t('{n}p inked', { n: fmtInt(p.turf) })));
     }
     // Top Splatter
     const ms = maxOf('splats');
-    if (ms > 0) P.filter((p) => p.splats === ms).forEach((p) => give(p, 'splats', `${ms} splat${ms === 1 ? '' : 's'}`));
+    if (ms > 0) P.filter((p) => p.splats === ms).forEach((p) => give(p, 'splats', t(ms === 1 ? '{n} splat' : '{n} splats', { n: ms })));
     // Untouchable (never splatted — only special when few managed it) / Survivor (unique fewest)
     const active = P.filter((p) => p.turf >= 30 || p.splats > 0);
     const zero = active.filter((p) => p.deaths === 0);
-    if (zero.length && zero.length <= 3) zero.forEach((p) => give(p, 'untouchable', 'Never splatted'));
+    if (zero.length && zero.length <= 3) zero.forEach((p) => give(p, 'untouchable', t('Never splatted')));
     else if (!zero.length && active.length) {
       const md = Math.min(...active.map((p) => p.deaths));
       const s = active.filter((p) => p.deaths === md);
-      if (s.length === 1) give(s[0], 'survivor', `Splatted ${md}×`);
+      if (s.length === 1) give(s[0], 'survivor', t('Splatted {n}×', { n: md }));
     }
     // Pure Painter — top-3 turf with zero splats
-    [...P].sort((a, b) => b.turf - a.turf).slice(0, 3).filter((p) => p.splats === 0 && p.turf > 0).forEach((p) => give(p, 'pure', `${fmtInt(p.turf)}p · 0 splats`));
+    [...P].sort((a, b) => b.turf - a.turf).slice(0, 3).filter((p) => p.splats === 0 && p.turf > 0).forEach((p) => give(p, 'pure', t('{n}p · 0 splats', { n: fmtInt(p.turf) })));
     // MVP — best normalised all-round score on the winning team
     const self = P.find((p) => p.isSelf);
     const selfTeam = self ? self.team : 0;
@@ -153,7 +154,7 @@ export function computeAwards(players = [], { win = true, percents = [50, 50] } 
     const winners = P.filter((p) => p.team === wt && (p.turf > 0 || p.splats > 0));
     if (winners.length) {
       const best = winners.reduce((b, p) => (score(p) > score(b) + 1e-9 || (Math.abs(score(p) - score(b)) < 1e-9 && p.turf > b.turf) ? p : b));
-      give(best, 'mvp', 'Top all-round score');
+      give(best, 'mvp', t('Top all-round score'));
     }
     for (const list of by) list.sort((x, y) => AWARD_ORDER.indexOf(x.id) - AWARD_ORDER.indexOf(y.id));
   }
@@ -162,24 +163,24 @@ export function computeAwards(players = [], { win = true, percents = [50, 50] } 
   if (pa <= 1.0001 && pb <= 1.0001) { pa *= 100; pb *= 100; }
   const margin = Math.abs(pa - pb);
   const match = [];
-  if (margin < 3) match.push({ ...MATCH_TAGS.close, value: `${margin.toFixed(1)}% margin` });
+  if (margin < 3) match.push({ ...MATCH_TAGS.close, value: t('{m}% margin', { m: margin.toFixed(1) }) });
   else if (margin >= 20) match.push({ ...MATCH_TAGS.landslide, value: `+${margin.toFixed(1)}%` });
   return { byPlayer: by, match };
 }
 
 /** Big stamped medal for the local player's awards. */
 export function medalMarkup(aw, seed = 1) {
-  return `<div class="iw-medal is-${aw.metal}" data-aw="${aw.id}" title="${aw.label} — ${aw.desc}">
+  return `<div class="iw-medal is-${aw.metal}" data-aw="${aw.id}" title="${t(aw.label)} — ${t(aw.desc)}">
     <span class="iw-medal__burst">${splatSVG({ seed: 60 + seed * 7, cls: 'iw-fself', r: 54, arms: 9, drops: 5 })}</span>
     <span class="iw-medal__ribbon"><i></i><i></i></span>
     <span class="iw-medal__disc"><span class="iw-medal__face">${awardIcon(aw.icon)}</span><i class="iw-medal__shine"></i></span>
-    <span class="iw-medal__label">${aw.label}</span>
+    <span class="iw-medal__label">${t(aw.label)}</span>
     <span class="iw-medal__val">${aw.value || ''}</span>
   </div>`;
 }
 /** Small award chip for the team tables. */
 export function awardBadge(aw) {
-  return h('span', { class: `iw-aw is-${aw.metal}`, 'data-aw': aw.id, title: `${aw.label} — ${aw.desc}`, html: awardIcon(aw.icon) });
+  return h('span', { class: `iw-aw is-${aw.metal}`, 'data-aw': aw.id, title: `${t(aw.label)} — ${t(aw.desc)}`, html: awardIcon(aw.icon) });
 }
 
 // ================================================================================== ranks
@@ -556,8 +557,8 @@ function previewLook(ctx, pad) {
   let v = +ctx.value || 1, ph = 0, shown = v;
   const set = (nv) => {
     v = +nv || 1;
-    if (pad) stat.innerHTML = `Full-stick 360° turn in <b>${(TAU / (PAD_YAW_RATE * v)).toFixed(2)} s</b>`;
-    else stat.innerHTML = `<b>${fmtInt(TAU / (MOUSE_RAD_PER_PX * v))} px</b> of mouse travel per 360° turn`;
+    if (pad) stat.innerHTML = t('Full-stick 360° turn in <b>{n} s</b>', { n: (TAU / (PAD_YAW_RATE * v)).toFixed(2) });
+    else stat.innerHTML = t('<b>{n} px</b> of mouse travel per 360° turn', { n: fmtInt(TAU / (MOUSE_RAD_PER_PX * v)) });
   };
   set(v);
   return {
@@ -582,7 +583,7 @@ function previewInvert(ctx) {
       <g transform="translate(160 90)"><circle r="11" fill="none" stroke="#fff" stroke-width="4"/><circle r="11" fill="none" stroke="${K}" stroke-width="1.5"/><circle r="2.6" fill="#fff" stroke="${K}" stroke-width="1.2"/></g>`, 'iw-pv-inv__screen')}
     <div class="iw-pv-cap"></div>` });
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? 'Push up <b>→ look DOWN</b>' : 'Push up <b>→ look UP</b>'; };
+  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? t('Push up <b>→ look DOWN</b>') : t('Push up <b>→ look UP</b>'); };
   set(ctx.value);
   return { el, set };
 }
@@ -616,7 +617,7 @@ function previewFov(ctx) {
     wedgeEl.setAttribute('d', wedge(cur));
     let n = 0;
     tEls.forEach((g, i) => { const inside = Math.abs(T[i][0]) <= cur / 2 && T[i][1] <= R; g.classList.toggle('is-in', inside); if (inside) n++; });
-    if (n !== lastN) { lastN = n; cap.innerHTML = `<b>${n} of ${T.length}</b> squidkids in view`; }
+    if (n !== lastN) { lastN = n; cap.innerHTML = t('<b>{n} of {total}</b> squidkids in view', { n, total: T.length }); }
   };
   apply();
   return {
@@ -636,15 +637,15 @@ function previewQuality(ctx) {
     const q = Q[v] || Q.high || {};
     ladder.querySelectorAll('.iw-pv-ladder__col').forEach((c) => c.classList.toggle('is-on', c.dataset.q === v));
     const rows = [
-      ['Pixel density', `up to ${(+q.pixelRatio || 1).toFixed(q.pixelRatio % 1 ? 2 : 1).replace(/0$/, '')}×`],
-      ['Shadow map', `${q.shadowSize || 0}px`],
-      ['Anti-aliasing', q.msaa ? `${q.msaa}× MSAA` : 'Off'],
-      ['Ink detail', `${Math.round((q.paintAtlas || 2048) / 1024)}K atlas`],
-      ['Ambient occlusion', q.ao ? 'On' : 'Off'],
-      ['Particles', `${Math.round((q.particles ?? 1) * 100)}%`],
+      [t('Pixel density'), t('up to {n}×', { n: (+q.pixelRatio || 1).toFixed(q.pixelRatio % 1 ? 2 : 1).replace(/0$/, '') })],
+      [t('Shadow map'), `${q.shadowSize || 0}px`],
+      [t('Anti-aliasing'), q.msaa ? `${q.msaa}× MSAA` : t('Off')],
+      [t('Ink detail'), t('{n}K atlas', { n: Math.round((q.paintAtlas || 2048) / 1024) })],
+      [t('Ambient occlusion'), q.ao ? t('On') : t('Off')],
+      [t('Particles'), t('{n}%', { n: Math.round((q.particles ?? 1) * 100) })],
     ];
     chips.innerHTML = '';
-    rows.forEach(([k, val], i) => chips.appendChild(h('span', { class: 'iw-pv-chip' + (/Off|0%/.test(val) ? ' is-off' : ''), style: { '--i': i } }, h('small', null, k), h('b', null, val))));
+    rows.forEach(([k, val], i) => chips.appendChild(h('span', { class: 'iw-pv-chip' + (/Off|0%|关/.test(val) ? ' is-off' : ''), style: { '--i': i } }, h('small', null, k), h('b', null, val))));
   };
   set(ctx.value);
   return { el, set };
@@ -659,7 +660,7 @@ function previewShadows(ctx) {
     <g transform="translate(160 74) scale(.5)" style="color:var(--a)">${SQUID.replace('class="iw-ico iw-squid"', 'x="0" y="0" width="64" height="64"')}</g>
     <path class="iw-fa" d="M60 150 q20 -9 40 0 q10 6 -6 12 q-20 7 -34 -2 q-8 -6 0 -10z"/>`) + '<div class="iw-pv-cap"></div>' });
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? 'Soft sun shadows <b>ON</b>' : 'Shadows <b>OFF</b> — faster on older machines'; };
+  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? t('Soft sun shadows <b>ON</b>') : t('Shadows <b>OFF</b> — faster on older machines'); };
   set(ctx.value);
   return { el, set };
 }
@@ -675,7 +676,7 @@ function previewBloom(ctx) {
       <g transform="translate(136 66) scale(.75)" style="color:#fff">${SPECIAL_ICONS.slam.replace('class="iw-ico "', 'x="0" y="0" width="64" height="64"')}</g>
       <rect x="1" y="1" width="318" height="178" rx="14" fill="none" stroke="${K}" stroke-width="3"/></svg><div class="iw-pv-cap"></div>` });
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? 'Bright ink and specials <b>glow</b>' : 'Glow <b>OFF</b>'; };
+  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? t('Bright ink and specials <b>glow</b>') : t('Glow <b>OFF</b>'); };
   set(ctx.value);
   return { el, set };
 }
@@ -690,7 +691,7 @@ function hudFrame(inner) {
 function previewFps(ctx) {
   const el = h('div', { class: 'iw-pv iw-pv--fps', html: hudFrame(`<g class="iw-pv-pop"><rect x="12" y="10" width="58" height="18" rx="6" fill="${K}"/><text x="41" y="23" text-anchor="middle" font-family="Rubik, sans-serif" font-weight="800" font-size="10.5" fill="#7dffa8">60 FPS</text></g>`) + '<div class="iw-pv-cap"></div>' });
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? 'Frame counter <b>shown</b> in matches' : 'Frame counter <b>hidden</b>'; };
+  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? t('Frame counter <b>shown</b> in matches') : t('Frame counter <b>hidden</b>'); };
   set(ctx.value);
   return { el, set };
 }
@@ -699,7 +700,7 @@ function previewMinimap(ctx) {
       <path class="iw-fa" d="M238 118 q10 -6 20 0 q6 5 -4 10 q-10 4 -16 -2z M244 140 q9 -5 16 2 q4 6 -6 8 q-9 1 -10 -10z"/><path class="iw-fb" d="M280 112 q9 -4 16 2 q4 6 -6 9 q-9 2 -10 -11z M276 140 q10 -6 20 1 q5 6 -6 10 q-11 2 -14 -11z"/>
       <circle cx="252" cy="132" r="4" fill="#fff" stroke="${K}" stroke-width="2"/></g>`) + '<div class="iw-pv-cap"></div>' });
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? 'Turf minimap <b>in the corner</b>' : 'Minimap <b>hidden</b> — hold TAB for the big map'; };
+  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? t('Turf minimap <b>in the corner</b>') : t('Minimap <b>hidden</b> — hold TAB for the big map'); };
   set(ctx.value);
   return { el, set };
 }
@@ -709,15 +710,15 @@ function previewShake(ctx) {
   const frame = el.querySelector('.iw-pv-shake__frame');
   const boom = el.querySelector('.iw-pv-boom');
   const cap = el.querySelector('.iw-pv-cap');
-  let v = +ctx.value, t = 0.6;
-  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0 ? 'Screen shake <b>OFF</b>' : `Shake strength <b>${Math.round(v * 100)}%</b>`; };
+  let v = +ctx.value, tt = 0.6;
+  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0 ? t('Screen shake <b>OFF</b>') : t('Shake strength <b>{n}%</b>', { n: Math.round(v * 100) }); };
   set(v);
   return {
     el, set,
     tick: (dt) => {
-      t -= dt;
-      if (t > 0) return;
-      t = 1.7;
+      tt -= dt;
+      if (tt > 0) return;
+      tt = 1.7;
       if (boom.animate) boom.animate([{ opacity: 0, scale: 0.2 }, { opacity: 1, scale: 1.15, offset: 0.2 }, { opacity: 1, scale: 1, offset: 0.35 }, { opacity: 0, scale: 1.1 }], { duration: 900, easing: 'ease-out' });
       if (v > 0 && frame.animate) {
         const a = 9 * v, kf = [];
@@ -737,26 +738,26 @@ function previewAudio(ctx, key) {
   const el = h('div', { class: 'iw-pv iw-pv--audio' }, h('div', { class: 'iw-pv-audio__box' }, icon, meter), cap);
   const R = rng(key.length * 97 + 5);
   const seeds = bars.map(() => [R() * TAU, 2 + R() * 5, 0.4 + R() * 0.6]);
-  let v = +ctx.value, s = ctx.settings || {}, t = 0, shown = 0;
+  let v = +ctx.value, s = ctx.settings || {}, tt = 0, shown = 0;
   const eff = () => (key === 'master' ? v : v * (s.master ?? 1));
   const set = (nv, ss) => {
     v = clamp(+nv || 0); if (ss) s = ss;
     const e = eff();
-    cap.innerHTML = key === 'master' ? `Overall output <b>${Math.round(v * 100)}%</b>` : `Heard at <b>${Math.round(e * 100)}%</b> after master volume`;
+    cap.innerHTML = key === 'master' ? `${t('Overall output')} <b>${Math.round(v * 100)}%</b>` : `${t('Heard at')} <b>${Math.round(e * 100)}%</b> ${t('after master volume')}`;
     el.classList.toggle('is-mute', e <= 0.001);
   };
   set(v);
   return {
     el, set,
     tick: (dt) => {
-      t += dt;
+      tt += dt;
       shown += (eff() - shown) * (1 - Math.exp(-dt * 8));
-      const beat = key === 'sfx' ? Math.pow(Math.max(0, Math.sin(t * 5.1)), 6) : 0.55 + 0.45 * Math.pow(Math.max(0, Math.sin(t * Math.PI * 2.4)), 3);
+      const beat = key === 'sfx' ? Math.pow(Math.max(0, Math.sin(tt * 5.1)), 6) : 0.55 + 0.45 * Math.pow(Math.max(0, Math.sin(tt * Math.PI * 2.4)), 3);
       for (let i = 0; i < N; i++) {
         const [p, f, a] = seeds[i];
         const x = i / (N - 1);
         const spectrum = key === 'music' ? 1 - x * 0.55 : key === 'sfx' ? 0.35 + 0.65 * Math.sin(x * Math.PI) : 0.8 - x * 0.3;
-        const lvl = clamp(shown * spectrum * a * (0.45 + 0.55 * Math.abs(Math.sin(t * f + p))) * (0.5 + 0.8 * beat) * 1.25, 0.02, 1);
+        const lvl = clamp(shown * spectrum * a * (0.45 + 0.55 * Math.abs(Math.sin(tt * f + p))) * (0.5 + 0.8 * beat) * 1.25, 0.02, 1);
         bars[i].style.transform = `scaleY(${lvl.toFixed(3)})`;
       }
     },
@@ -772,18 +773,18 @@ function previewAimAssist(ctx) {
     <g class="iw-pv-aim__x"><circle r="13" fill="none" stroke="#fff" stroke-width="4"/><circle r="13" fill="none" stroke="${K}" stroke-width="1.6"/><circle r="3" fill="#fff" stroke="${K}" stroke-width="1.4"/>
       <path d="M0 -21 V-15 M0 21 V15 M-21 0 H-15 M21 0 H15" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></g>`) + '<div class="iw-pv-cap"></div>' });
   const xEl = el.querySelector('.iw-pv-aim__x'), trail = el.querySelector('.iw-pv-aim__trail'), cap = el.querySelector('.iw-pv-cap');
-  let v = clamp(+ctx.value || 0), t = 0;
-  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0.001 ? 'Aim assist <b>OFF</b>' : `Pull strength <b>${Math.round(v * 100)}%</b>`; };
+  let v = clamp(+ctx.value || 0), tt = 0;
+  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0.001 ? `${t('Aim assist')} <b>${t('OFF')}</b>` : `${t('Pull strength')} <b>${Math.round(v * 100)}%</b>`; };
   set(v);
   return {
     el, set,
     tick: (dt) => {
-      t = (t + dt / 2.6) % 1;
+      tt = (tt + dt / 2.6) % 1;
       // raw sweep left → right; assisted path eases toward the target centre (160, 100) as it passes
-      const x0 = 30 + t * 260, near = Math.exp(-Math.pow((x0 - 160) / 60, 2));
+      const x0 = 30 + tt * 260, near = Math.exp(-Math.pow((x0 - 160) / 60, 2));
       const x = x0 + (160 - x0) * near * v * 0.55, y = 64 + (100 - 64) * near * v;
       xEl.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
-      if (t < 0.02) trail.setAttribute('d', `M${x.toFixed(1)} ${y.toFixed(1)}`);
+      if (tt < 0.02) trail.setAttribute('d', `M${x.toFixed(1)} ${y.toFixed(1)}`);
       else trail.setAttribute('d', `${trail.getAttribute('d')} L${x.toFixed(1)} ${y.toFixed(1)}`);
     },
   };
@@ -792,7 +793,7 @@ function previewAimAssist(ctx) {
 function previewAimMouse(ctx) {
   const el = h('div', { class: 'iw-pv iw-pv--aimm', html: `<div class="iw-pv-aimm__row"><span class="iw-pv-aimm__dev is-pad">${GLYPHS.gamepad}<b>ASSIST</b></span><span class="iw-pv-aimm__dev is-mouse">${mouseGlyph('M')}<b>ASSIST</b></span></div><div class="iw-pv-cap"></div>` });
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? 'Assist on <b>controller and mouse</b> (lighter on mouse)' : 'Assist on <b>controller only</b>'; };
+  const set = (v) => { el.classList.toggle('is-on', !!v); cap.innerHTML = v ? t('Assist on <b>controller and mouse</b> (lighter on mouse)') : t('Assist on <b>controller only</b>'); };
   set(ctx.value);
   return { el, set };
 }
@@ -800,15 +801,15 @@ function previewAimMouse(ctx) {
 function previewRumble(ctx) {
   const el = h('div', { class: 'iw-pv iw-pv--rumble', html: `<div class="iw-pv-rumble__pad">${GLYPHS.gamepad}<i class="l"></i><i class="r"></i></div><div class="iw-pv-cap"></div>` });
   const pad = el.querySelector('.iw-pv-rumble__pad'), cap = el.querySelector('.iw-pv-cap');
-  let v = clamp(+ctx.value || 0), t = 0.4;
-  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0 ? 'Vibration <b>OFF</b>' : `Rumble strength <b>${Math.round(v * 100)}%</b>`; el.classList.toggle('is-off', v <= 0); };
+  let v = clamp(+ctx.value || 0), tt = 0.4;
+  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0 ? `${t('Vibration')} <b>${t('OFF')}</b>` : `${t('Rumble strength')} <b>${Math.round(v * 100)}%</b>`; el.classList.toggle('is-off', v <= 0); };
   set(v);
   return {
     el, set,
     tick: (dt) => {
-      t -= dt;
-      if (t > 0) return;
-      t = 1.5;
+      tt -= dt;
+      if (tt > 0) return;
+      tt = 1.5;
       if (v > 0 && pad.animate) {
         const a = 7 * v, kf = [];
         for (let i = 0; i <= 10; i++) { const d = (1 - i / 10) * a; kf.push({ transform: `translate(${((i % 2 ? 1 : -1) * d).toFixed(1)}px, ${((i % 3 === 1 ? -1 : 1) * d * 0.35).toFixed(1)}px) rotate(${((i % 2 ? -1 : 1) * d * 0.5).toFixed(2)}deg)` }); }
@@ -824,8 +825,8 @@ function previewColorblind(ctx) {
   const cb = ctx.cbPalette || { a: '#ffd21a', b: '#2a52ff' };
   const pair = (a, b) => `<span class="iw-pv-pair"><i style="background:${a}"></i><i style="background:${b}"></i></span>`;
   const el = h('div', { class: 'iw-pv iw-pv--cb', html: `
-    <div class="iw-pv-pal iw-pv-pal--std"><small>STANDARD INKS · rotate each match</small><div class="iw-pv-pal__row">${pals.map((p) => pair(p.a, p.b)).join('')}</div><i class="iw-pv-pal__check">${GLYPHS.check}</i></div>
-    <div class="iw-pv-pal iw-pv-pal--cb"><small>COLORBLIND-SAFE · always</small><div class="iw-pv-pal__row">${pair(cb.a, cb.b)}<span class="iw-pv-pal__name">${(cb.names || ['Sun', 'Sea']).join(' vs ')}</span></div><i class="iw-pv-pal__check">${GLYPHS.check}</i></div>` });
+    <div class="iw-pv-pal iw-pv-pal--std"><small>${esc(t('STANDARD INKS · rotate each match'))}</small><div class="iw-pv-pal__row">${pals.map((p) => pair(p.a, p.b)).join('')}</div><i class="iw-pv-pal__check">${GLYPHS.check}</i></div>
+    <div class="iw-pv-pal iw-pv-pal--cb"><small>${esc(t('COLORBLIND-SAFE · always'))}</small><div class="iw-pv-pal__row">${pair(cb.a, cb.b)}<span class="iw-pv-pal__name">${esc(t('{a} vs {b}', { a: t((cb.names || ['Sun', 'Sea'])[0]), b: t((cb.names || ['Sun', 'Sea'])[1]) }))}</span></div><i class="iw-pv-pal__check">${GLYPHS.check}</i></div>` });
   const set = (v) => el.classList.toggle('is-on', !!v);
   set(ctx.value);
   return { el, set };
@@ -839,7 +840,7 @@ function previewDifficulty(ctx) {
       h('i', { html: GLYPHS.bot }), h('span', { class: 'iw-pips' }, Array.from({ length: 3 }, (_, k) => h('i', { class: k < (info[d.id]?.pips || i + 1) ? 'on' : '' }))), h('b', null, d.name)))),
     h('div', { class: 'iw-pv-cap' }));
   const cap = el.querySelector('.iw-pv-cap');
-  const set = (v) => { el.querySelectorAll('.iw-pv-bot').forEach((b) => b.classList.toggle('is-on', b.dataset.d === v)); cap.textContent = info[v]?.text || ''; };
+  const set = (v) => { el.querySelectorAll('.iw-pv-bot').forEach((b) => b.classList.toggle('is-on', b.dataset.d === v)); cap.textContent = t(info[v]?.text || ''); };
   set(ctx.value);
   return { el, set };
 }
@@ -856,7 +857,7 @@ function previewLength(ctx) {
     v = +v || 180;
     num.textContent = `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
     arc.setAttribute('stroke-dasharray', `${((v / max) * 100).toFixed(1)} 100`);
-    cap.innerHTML = v < 120 ? 'A quick <b>sprint</b> — every second counts' : 'The full <b>turf war</b> — room for comebacks';
+    cap.innerHTML = v < 120 ? t('A quick <b>sprint</b> — every second counts') : t('The full <b>turf war</b> — room for comebacks');
     num.classList.remove('is-pop'); void num.offsetWidth; num.classList.add('is-pop'); // eslint-disable-line no-void
   };
   set(ctx.value);
@@ -866,19 +867,25 @@ function previewLength(ctx) {
 function previewLink() {
   const el = h('div', { class: 'iw-pv iw-pv--link', html: `<div class="iw-pv-link__art"><i>${GLYPHS.keyboard}</i><i>${GLYPHS.gamepad}</i></div>
     <div class="iw-pv-link__keys">${keycap('W')}${keycap('A')}${keycap('S')}${keycap('D')}<em>+</em>${mouseGlyph('L')}<em>·</em>${padGlyph('LS')}${padGlyph('RT')}</div>
-    <div class="iw-pv-cap">Every binding for <b>keyboard, mouse and controller</b></div>` });
+    <div class="iw-pv-cap">${t('Every binding for <b>keyboard, mouse and controller</b>')}</div>` });
   return { el, set() {} };
 }
 
 function previewTab(ctx) {
   const t = ctx.tab || {};
   const el = h('div', { class: 'iw-pv iw-pv--tab', html: `<div class="iw-pv-tab__icon">${GLYPHS[t.icon] || GLYPHS.gear}</div>
-    <div class="iw-pv-tab__list">${(t.rows || []).map((r) => `<span>${r.label}</span>`).join('')}</div>` });
+    <div class="iw-pv-tab__list">${(t.rows || []).map((r) => `<span>${esc(r.label)}</span>`).join('')}</div>` });
   return { el, set() {} };
 }
 function previewReset() {
   const el = h('div', { class: 'iw-pv iw-pv--tab', html: `<div class="iw-pv-tab__icon iw-pv-tab__icon--reset">${GLYPHS.reset}</div>
-    <div class="iw-pv-cap">Press twice to restore <b>every setting</b> on every tab</div>` });
+    <div class="iw-pv-cap">${t('settings.reset.previewCap')}</div>` });
+  return { el, set() {} };
+}
+// the language picker: the language names themselves (always in their own language, never translated)
+function previewLang() {
+  const el = h('div', { class: 'iw-pv iw-pv--tab', html: `<div class="iw-pv-tab__icon">${GLYPHS.globe}</div>
+    <div class="iw-pv-tab__list" style="font-size:1.15rem;gap:.45em">${LANGUAGES.map((l) => `<span>${l.label}</span>`).join('<span style="opacity:.45">·</span>')}</div>` });
   return { el, set() {} };
 }
 
@@ -904,6 +911,7 @@ export function createPreview(key, ctx = {}) {
     case 'matchLength': return previewLength(ctx);
     case '_howto': return previewLink(ctx);
     case '_reset': return previewReset(ctx);
+    case 'lang': return previewLang(ctx);
     default: return previewTab(ctx);
   }
 }

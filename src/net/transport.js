@@ -2,6 +2,8 @@
 // envelope the relay never parses: "b|<json>" broadcast, "s|<to>|<json>" to one member; incoming "m|<from>|<json>".
 // Control frames are JSON objects (welcome / join / leave / err / pong).
 
+import { ERR, netError, codeFromRelay } from './errors.js';
+
 export const PROTO = 1;
 
 // Where the relay lives: ?relay=… wins; a page served from this machine or the LAN talks to a local `wrangler dev`
@@ -36,16 +38,16 @@ export class Transport {
     this.bytesIn = 0; this.bytesOut = 0;
   }
 
-  /** Resolves with the welcome frame, rejects with an Error carrying a player-facing message. */
+  /** Resolves with the welcome frame, rejects with an Error carrying a `code` (src/net/errors.js). */
   connect(code, name, create) {
     return new Promise((resolve, reject) => {
       let settled = false;
       const done = (fn, v) => { if (!settled) { settled = true; clearTimeout(timer); fn(v); } };
       const url = `${relayURL()}/room/${encodeURIComponent(code)}?name=${encodeURIComponent(name)}&v=${PROTO}${create ? '&create=1' : ''}`;
       let ws;
-      try { ws = new WebSocket(url); } catch { reject(new Error('Could not connect')); return; }
+      try { ws = new WebSocket(url); } catch { reject(netError(ERR.CONNECT, 'Could not connect')); return; }
       this.ws = ws;
-      const timer = setTimeout(() => { done(reject, new Error('Could not connect')); try { ws.close(); } catch { /* ignore */ } }, 8000);
+      const timer = setTimeout(() => { done(reject, netError(ERR.CONNECT, 'Could not connect')); try { ws.close(); } catch { /* ignore */ } }, 8000);
       const handle = (ev) => {
         const s = typeof ev.data === 'string' ? ev.data : '';
         this.bytesIn += s.length;
@@ -60,7 +62,7 @@ export class Transport {
           return;
         }
         let o; try { o = JSON.parse(s); } catch { return; }
-        if (o.t === 'err') { done(reject, new Error(o.e || 'Could not connect')); return; }
+        if (o.t === 'err') { done(reject, netError(codeFromRelay(o.c, o.e), o.e || 'Could not connect')); return; }
         if (o.t === 'pong') { const r = performance.now() - o.c; this.rtt = this.rtt ? this.rtt + (r - this.rtt) * 0.3 : r; return; }
         if (o.t === 'welcome') { this.id = o.id; this._startPing(); done(resolve, o); }
         this.onControl?.(o);
@@ -72,10 +74,10 @@ export class Transport {
       };
       ws.onclose = (ev) => {
         this._stopPing();
-        if (!settled) { done(reject, new Error(ev.reason || 'Could not connect')); return; }
+        if (!settled) { done(reject, netError(codeFromRelay(null, ev.reason), ev.reason || 'Could not connect')); return; }
         this.onClose?.(ev.reason || 'Disconnected');
       };
-      ws.onerror = () => { if (!settled) done(reject, new Error('Could not connect')); };
+      ws.onerror = () => { if (!settled) done(reject, netError(ERR.CONNECT, 'Could not connect')); };
     });
   }
 

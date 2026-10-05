@@ -25,6 +25,8 @@ import {
 } from './menu-art.js';
 import { bossSilhouette, bossEmblem, BOSS_GLYPH, BOSS_NAME, BOSS_EPITHET } from './boss-art.js';
 import { WhatsNew } from './news.js';
+import { t, LANGUAGES } from '../i18n/strings.js';
+import { ERR, codeFromText } from '../net/errors.js';
 
 const SCREENS = ['loading', 'title', 'main', 'mode', 'loadout', 'setup', 'locker', 'settings', 'howto', 'credits', 'pause', 'results', 'online', 'lobby'];
 // Transitions that get the full-screen ink wipe (the rest use staggered pop-ins).
@@ -45,14 +47,22 @@ const EMOTES = [
 // splashtag title line ("Fresh Squidkid"): adjective + subject, picked from the player's name so everyone sees the same
 const TITLE_ADJ = ['Fresh', 'Inky', 'Turf', 'Splashy', 'Rad', 'Sneaky', 'Deep-Sea', 'Glossy', 'Tidal', 'Zesty', 'Mighty', 'Soggy', 'Speedy', 'Salty', 'Bubbly', 'Snazzy', 'Drippy', 'Sunny'];
 const TITLE_NOUN = ['Squidkid', 'Inkling', 'Turf Boss', 'Wave Rider', 'Splatter', 'Tentacle', 'Drip Lord', 'Sprayer', 'Rookie', 'Legend', 'Deck Hand', 'Sea Pickle', 'Kelp Fan', 'Ink Slinger', 'Plaza Star', 'Harbor Kid'];
+// Room failures, keyed by the *error code* (src/net/errors.js) rather than by the English message: the wording is
+// free to be translated without any comparison or lookup depending on it. Every field is an i18n message id:
+// `title` + `text` fill the join panel, `short` is the one-line toast.
 const JOIN_ERR = {
-  'Room not found': { title: 'ROOM NOT FOUND', text: 'No room uses that code. Double-check it with your friend — rooms close when everyone leaves.', icon: 'question' },
-  'Room is full': { title: 'ROOM IS FULL', text: 'All 8 spots are taken. Ask the host to make space, or open a room of your own.', icon: 'users' },
-  'Match in progress': { title: 'MATCH IN PROGRESS', text: 'They are mid-match right now. Try again in a few minutes — the room reopens after the results.', icon: 'clock' },
-  'Could not connect': { title: 'CAN\u2019T CONNECT', text: 'The INKWAVE servers didn\u2019t answer. Check your connection, then try again.', icon: 'signal' },
-  'Room code taken': { title: 'TRY AGAIN', text: 'That room code was just taken. Give it another go.', icon: 'reset' },
-  'Lost connection to the room': { title: 'CONNECTION LOST', text: 'The link to the room dropped. Check your connection and join again.', icon: 'signal' },
+  [ERR.NOT_FOUND]: { title: 'ROOM NOT FOUND', text: 'No room uses that code. Double-check it with your friend — rooms close when everyone leaves.', short: 'No room uses that code.', icon: 'question' },
+  [ERR.FULL]: { title: 'ROOM IS FULL', text: 'All 8 spots are taken. Ask the host to make space, or open a room of your own.', short: 'That room is full.', icon: 'users' },
+  [ERR.IN_PROGRESS]: { title: 'MATCH IN PROGRESS', text: 'They are mid-match right now. Try again in a few minutes — the room reopens after the results.', short: 'They are mid-match right now.', icon: 'clock' },
+  [ERR.TEAM_FULL]: { title: 'TEAM IS FULL', text: 'That team already has four players. Pick the other one, or wait for a spot.', short: 'That team is full.', icon: 'users' },
+  [ERR.CONNECT]: { title: 'CAN\u2019T CONNECT', text: 'The INKWAVE servers didn\u2019t answer. Check your connection, then try again.', short: 'The INKWAVE servers didn\u2019t answer.', icon: 'signal' },
+  [ERR.CODE_TAKEN]: { title: 'TRY AGAIN', text: 'That room code was just taken. Give it another go.', short: 'That room code was just taken.', icon: 'reset' },
+  [ERR.LOST]: { title: 'CONNECTION LOST', text: 'The link to the room dropped. Check your connection and join again.', short: 'The link to the room dropped.', icon: 'signal' },
+  [ERR.STALE]: { title: 'PLEASE REFRESH', text: 'The game was updated since this page loaded. Refresh to play online again.', short: 'Refresh the page to play online.', icon: 'reset' },
+  [ERR.MATCH_START]: { title: 'COULDN\u2019T START', text: 'The match never got going. Back to the lobby — try again.', short: 'The match never got going.', icon: 'close' },
 };
+/** Resolve a net failure to a JOIN_ERR entry: a code first, then a legacy English message (older relay / close reason). */
+const joinErrOf = (key) => JOIN_ERR[key] || (typeof key === 'string' ? JOIN_ERR[codeFromText(key)] : null) || null;
 // Stage art rendered from the real game by tools/stage-shots.mjs: <id>-<day|dusk>[-sm].webp (resolved against this
 // module so the UI lab in tools/ finds them too). Missing art falls back to the layout thumbnail.
 const STAGE_DIR = new URL('../../assets/stages/', import.meta.url).href;
@@ -94,7 +104,8 @@ const zNum = (x, y, n, size = 16) => `<text x="${x}" y="${y}" text-anchor="middl
 const zPill = (x, y, w, hgt, cls, n, size) => `<g transform="translate(${x} ${y})"><rect width="${w}" height="${hgt}" rx="${hgt / 2.6}" fill="${ZK}"/><rect x="2.5" y="2.5" width="${w - 5}" height="${hgt - 5}" rx="${hgt / 3.2}" class="${cls}"/>${zNum(w / 2, hgt * 0.72, n, size)}</g>`;
 const ZONE_FLOOR = `<path d="M10 60 L60 34 L110 60 L60 78 Z" fill="#f4ecdc" stroke="${ZK}" stroke-width="2.5" stroke-linejoin="round"/>`;
 const ZONE_EDGE = `<path d="M30 58 L60 43 L90 58 L60 71 Z" fill="none" stroke="#fff" stroke-width="2.4" stroke-dasharray="5 3" stroke-linejoin="round"/>`;
-const ZONE_RULE_ART = {
+// built per render, not at import: the badge below carries a translatable label
+const zoneRuleArt = () => ({
   take: `<svg viewBox="0 0 120 80" aria-hidden="true">${ZONE_FLOOR}
     <clipPath id="iw-zr-take"><path d="M30 58 L60 43 L90 58 L60 71 Z"/></clipPath>
     <g clip-path="url(#iw-zr-take)"><path class="iw-fa" d="${blobPath(54, 58, 26, { seed: 3, sy: 0.55, points: 11, wobble: 0.16 })}"/><path class="iw-fb" d="${blobPath(84, 60, 6, { seed: 8, sy: 0.55, points: 8, wobble: 0.25 })}"/></g>${ZONE_EDGE}
@@ -105,7 +116,7 @@ const ZONE_RULE_ART = {
     ${zPill(8, 10, 48, 30, 'iw-fa', '37', 17)}${zPill(64, 10, 48, 30, 'iw-fb', '100', 15)}
     <path d="M32 44 L32 60 M25 53 L32 61 L39 53" stroke="${ZK}" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M32 44 L32 60 M25 53 L32 61 L39 53" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <g transform="translate(46 56)"><rect width="46" height="20" rx="10" fill="#ffd54a" stroke="${ZK}" stroke-width="2.5"/><text x="23" y="14.5" text-anchor="middle" font-family="'Titan One', sans-serif" font-size="11" fill="${ZK}">0 = WIN</text></g>
+    <g transform="translate(46 56)"><rect width="46" height="20" rx="10" fill="#ffd54a" stroke="${ZK}" stroke-width="2.5"/><text x="23" y="14.5" text-anchor="middle" font-family="'Titan One', sans-serif" font-size="11" fill="${ZK}">${t('0 = WIN')}</text></g>
   </svg>`,
   rotate: `<svg viewBox="0 0 120 80" aria-hidden="true">
     <rect x="18" y="6" width="84" height="68" rx="10" fill="#f4ecdc" stroke="${ZK}" stroke-width="2.5"/>
@@ -125,7 +136,7 @@ const ZONE_RULE_ART = {
     <g transform="translate(58 8)"><rect width="34" height="20" rx="10" fill="#ff4d6a" stroke="${ZK}" stroke-width="2.5"/>${zNum(17, 15, '+12', 11)}</g>
     <path d="M100 26 L100 10 M94 16 L100 9 L106 16" stroke="#ff4d6a" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`,
-};
+});
 // how a Zone Control match was decided, in plain words (winner's view / loser's view)
 const ZONE_REASON = {
   knockout: ['KNOCKOUT!', 'Knocked out'],
@@ -167,51 +178,56 @@ const MENU_DESC = {
 };
 
 const pctFmt = (v) => Math.round(v * 100) + '%';
-const SETTINGS_TABS = [
-  { id: 'controls', label: 'Controls', icon: 'gamepad', rows: [
-    { key: 'sensitivity', label: 'Mouse sensitivity', type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: 'How far the camera turns for each bit of mouse movement.' },
-    { key: 'padSensitivity', label: 'Controller sensitivity', type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: 'Camera turn speed with the right stick.' },
-    { key: 'invertY', label: 'Invert vertical look', type: 'toggle', help: 'Push up to look down, like a flight stick.' },
-    { key: 'aimAssist', label: 'Aim assist (controller)', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Gently slows and steers your aim onto nearby rivals when you play with a controller.' },
-    { key: 'aimAssistMouse', label: 'Aim assist for mouse', type: 'toggle', help: 'Also apply a lighter aim assist when aiming with a mouse. Off by default.' },
-    { key: '_howto', label: 'Controls reference', type: 'link', help: 'Every keyboard, mouse and controller binding in one place.' },
+// Built per-screen-open (not a module const) so labels resolve in the current language (src/i18n/strings.js).
+const settingsTabs = () => [
+  { id: 'general', label: t('settings.tab.general'), icon: 'globe', rows: [
+    { key: 'lang', label: t('settings.row.lang.label'), type: 'select', options: LANGUAGES.map((l) => [l.id, l.label]), help: t('settings.row.lang.help') },
   ] },
-  { id: 'video', label: 'Video', icon: 'monitor', rows: [
-    { key: 'quality', label: 'Graphics quality', type: 'seg', options: [['low', 'Low'], ['medium', 'Med'], ['high', 'High'], ['ultra', 'Ultra']], help: 'Resolution scale, shadow detail, anti-aliasing and particle counts.' },
-    { key: 'fov', label: 'Field of view', type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: 'Wider shows more of the turf around you.' },
-    { key: 'shadows', label: 'Shadows', type: 'toggle', help: 'Soft sun shadows. Turn off for extra speed on older machines.' },
-    { key: 'bloom', label: 'Bloom glow', type: 'toggle', help: 'A soft glow around bright ink and specials.' },
-    { key: 'showFps', label: 'Show FPS counter', type: 'toggle', help: 'Displays frames per second in the corner during matches.' },
-    { key: 'fpsCap', label: 'Frame rate limit', type: 'seg', options: [[0, 'Max'], [60, '60'], [30, '30']], help: 'Max follows your display (up to 120 Hz on ProMotion Macs). A 60 cap gives steadier pacing and longer battery life.' },
+  { id: 'controls', label: t('settings.tab.controls'), icon: 'gamepad', rows: [
+    { key: 'sensitivity', label: t('settings.row.sensitivity.label'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: t('settings.row.sensitivity.help') },
+    { key: 'padSensitivity', label: t('settings.row.padSensitivity.label'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: t('settings.row.padSensitivity.help') },
+    { key: 'invertY', label: t('settings.row.invertY.label'), type: 'toggle', help: t('settings.row.invertY.help') },
+    { key: 'aimAssist', label: t('settings.row.aimAssist.label'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: t('settings.row.aimAssist.help') },
+    { key: 'aimAssistMouse', label: t('settings.row.aimAssistMouse.label'), type: 'toggle', help: t('settings.row.aimAssistMouse.help') },
+    { key: '_howto', label: t('settings.row._howto.label'), type: 'link', help: t('settings.row._howto.help') },
+  ] },
+  { id: 'video', label: t('settings.tab.video'), icon: 'monitor', rows: [
+    { key: 'quality', label: t('settings.row.quality.label'), type: 'seg', options: [['low', t('settings.row.quality.low')], ['medium', t('settings.row.quality.medium')], ['high', t('settings.row.quality.high')], ['ultra', t('settings.row.quality.ultra')]], help: t('settings.row.quality.help') },
+    { key: 'fov', label: t('settings.row.fov.label'), type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: t('settings.row.fov.help') },
+    { key: 'shadows', label: t('settings.row.shadows.label'), type: 'toggle', help: t('settings.row.shadows.help') },
+    { key: 'bloom', label: t('settings.row.bloom.label'), type: 'toggle', help: t('settings.row.bloom.help') },
+    { key: 'showFps', label: t('settings.row.showFps.label'), type: 'toggle', help: t('settings.row.showFps.help') },
+    { key: 'fpsCap', label: t('settings.row.fpsCap.label'), type: 'seg', options: [[0, t('settings.row.fpsCap.max')], [60, '60'], [30, '30']], help: t('settings.row.fpsCap.help') },
     // desktop app only (the Electron preload provides window.inkwaveNative)
-    ...(typeof window !== 'undefined' && window.inkwaveNative ? [{ key: 'fullscreen', label: 'Fullscreen', type: 'toggle', help: 'Fill the whole display. Also ⌃⌘F or F11.' }] : []),
+    ...(typeof window !== 'undefined' && window.inkwaveNative ? [{ key: 'fullscreen', label: t('settings.row.fullscreen.label'), type: 'toggle', help: t('settings.row.fullscreen.help') }] : []),
   ] },
-  { id: 'audio', label: 'Audio', icon: 'speaker', rows: [
-    { key: 'master', label: 'Master volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Overall loudness of everything.' },
-    { key: 'music', label: 'Music', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Menu and battle soundtrack.' },
-    { key: 'sfx', label: 'Sound effects', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Weapons, splats, voices and menu sounds.' },
+  { id: 'audio', label: t('settings.tab.audio'), icon: 'speaker', rows: [
+    { key: 'master', label: t('settings.row.master.label'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: t('settings.row.master.help') },
+    { key: 'music', label: t('settings.row.music.label'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: t('settings.row.music.help') },
+    { key: 'sfx', label: t('settings.row.sfx.label'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: t('settings.row.sfx.help') },
   ] },
-  { id: 'gameplay', label: 'Gameplay', icon: 'swords', rows: [
-    { key: 'cameraShake', label: 'Camera shake', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Screen shake from explosions, slams and hits.' },
-    { key: 'rumble', label: 'Vibration', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Controller rumble for hits, splats, bombs and specials. Only while you play with a controller.' },
-    { key: 'colorblind', label: 'Colorblind-safe inks', type: 'toggle', help: 'Always use high-contrast yellow vs. blue team inks.' },
-    { key: 'minimap', label: 'Minimap', type: 'toggle', help: 'Show the turf minimap in the corner during matches.' },
-    { key: 'difficulty', label: 'Default bot skill', type: 'seg', options: null, help: 'Starting difficulty for new matches.' },
-    { key: 'matchLength', label: 'Default match length', type: 'seg', options: null, help: 'How long each Turf War lasts.' },
+  { id: 'gameplay', label: t('settings.tab.gameplay'), icon: 'swords', rows: [
+    { key: 'cameraShake', label: t('settings.row.cameraShake.label'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: t('settings.row.cameraShake.help') },
+    { key: 'rumble', label: t('settings.row.rumble.label'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: t('settings.row.rumble.help') },
+    { key: 'colorblind', label: t('settings.row.colorblind.label'), type: 'toggle', help: t('settings.row.colorblind.help') },
+    { key: 'minimap', label: t('settings.row.minimap.label'), type: 'toggle', help: t('settings.row.minimap.help') },
+    { key: 'difficulty', label: t('settings.row.difficulty.label'), type: 'seg', options: null, help: t('settings.row.difficulty.help') },
+    { key: 'matchLength', label: t('settings.row.matchLength.label'), type: 'seg', options: null, help: t('settings.row.matchLength.help') },
   ] },
 ];
-const TAB_BLURB = {
-  controls: 'Look speed, invert, aim assist and the full control reference.',
-  video: 'Quality tier, field of view and screen effects.',
-  audio: 'Master, music and sound-effect levels.',
-  gameplay: 'Shake, vibration, colour-safe inks, minimap and match defaults.',
-};
+const tabBlurbs = () => ({
+  general: t('settings.tab.general.blurb'),
+  controls: t('settings.tab.controls.blurb'),
+  video: t('settings.tab.video.blurb'),
+  audio: t('settings.tab.audio.blurb'),
+  gameplay: t('settings.tab.gameplay.blurb'),
+});
 
-const durLabel = (s) => (s < 120 ? `${s} SEC` : `${Math.round(s / 60)} MIN`);
+const durLabel = (s) => (s < 120 ? t('settings.dur.sec', { n: s }) : t('settings.dur.min', { n: Math.round(s / 60) }));
 
 // FNV-1a — the Character's style seed (character.js hashStr) so an unsaved look resolves identically here
 const fnv = (str) => { let x = 2166136261; for (let i = 0; i < str.length; i++) { x ^= str.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
-const tagTitle = (name) => { const x = fnv(String(name || '').toLowerCase()); return `${TITLE_ADJ[x % TITLE_ADJ.length]} ${TITLE_NOUN[(x >>> 8) % TITLE_NOUN.length]}`; };
+const tagTitle = (name) => { const x = fnv(String(name || '').toLowerCase()); return `${t(TITLE_ADJ[x % TITLE_ADJ.length])} ${t(TITLE_NOUN[(x >>> 8) % TITLE_NOUN.length])}`; };
 const tagNum = (name) => '#' + String(1000 + (fnv('#' + String(name || '')) % 9000));
 
 export class Menus {
@@ -507,6 +523,7 @@ export class Menus {
 
   // ================================================================ screen swapping / transitions
   _swap(name, opts) {
+    if (this._dd) this._dd.close();          // a dropdown never outlives the screen that opened it
     const old = this._scr;
     if (old) {
       safeCall(() => old.destroy && old.destroy());
@@ -655,6 +672,7 @@ export class Menus {
     const s = this._scr;
     if (!s) return false;
     if (this._starting) return true; // launching a match: ignore input under the wipe
+    if (this._dd && this._dd.nav(dir)) return true;   // an open dropdown owns the keys (↑↓ / Enter / Esc)
     if (s.onNav && s.onNav(dir)) return true;
     if (dir === 'back') { this._back(); return true; }
     if (dir === 'tab_prev' || dir === 'tab_next' || dir === 'alt') return true;
@@ -841,11 +859,11 @@ export class Menus {
       tip,
       h('div', { class: 'iw-corner iw-corner--br iw-in' }, `v${this._version()}`));
     let tipIdx = Math.floor(Math.random() * TIPS.length), tipT = 0, lastPct = -1;
-    const setTip = () => { tipText.innerHTML = richText(TIPS[tipIdx % TIPS.length]); restartAnim(tipText, 'is-in'); };
+    const setTip = () => { tipText.innerHTML = richText(t(TIPS[tipIdx % TIPS.length])); restartAnim(tipText, 'is-in'); };
     setTip();
     return {
       el, noCursor: true,
-      setLabel: (t) => { if (label.textContent !== t) { label.textContent = t; restartAnim(label, 'is-in'); } },
+      setLabel: (lbl) => { if (label.textContent !== lbl) { label.textContent = t(lbl); restartAnim(label, 'is-in'); } },
       tick: (dt) => {
         const p = this._loading.shown;
         fill.style.transform = `translateX(${(-100 + p * 100).toFixed(2)}%)`;
@@ -871,8 +889,8 @@ export class Menus {
     return {
       el, noCursor: true,
       onInputMode: (m) => {
-        press.firstChild.textContent = m === 'pad' ? 'PRESS ANY BUTTON' : 'PRESS ANY KEY';
-        press.lastChild.textContent = m === 'pad' ? '' : 'or click to start';
+        press.firstChild.textContent = t(m === 'pad' ? 'PRESS ANY BUTTON' : 'PRESS ANY KEY');
+        press.lastChild.textContent = m === 'pad' ? '' : t('or click to start');
       },
     };
   }
@@ -913,7 +931,7 @@ export class Menus {
       h('div', { class: 'iw-profile__xp' },
         h('span', { class: 'iw-lvl' }, h('small', null, 'LV'), String(prof.level)),
         h('span', { class: 'iw-xpbar iw-xpbar--shine', style: { '--t': xpT.toFixed(3) } }, h('i'), h('b', { class: 'iw-xpbar__glint' })),
-        h('span', { class: 'iw-profile__xpnum' }, `${fmtInt(prof.xp)} / ${fmtInt(prof.xpToNext)} XP`)),
+        h('span', { class: 'iw-profile__xpnum' }, t('{xp} / {next} XP', { xp: fmtInt(prof.xp), next: fmtInt(prof.xpToNext) }))),
       h('div', { class: 'iw-profile__stats' },
         h('div', null, h('b', null, fmtInt(prof.wins)), h('span', null, 'WINS')),
         h('div', null, h('b', null, fmtInt(prof.played)), h('span', null, 'MATCHES')),
@@ -937,8 +955,8 @@ export class Menus {
     return {
       el, wrap: true, initial: btns[0],
       onFocus: (f) => {
-        const t = MENU_DESC[f.dataset.id];
-        if (t && descText.textContent !== t) { descText.textContent = t; restartAnim(desc, 'is-swap'); }
+        const d = MENU_DESC[f.dataset.id];
+        if (d && descText.textContent !== d) { descText.textContent = t(d); restartAnim(desc, 'is-swap'); }
       },
       onBack: () => { this._sfx('ui_back'); this.show('title', { back: true }); },
     };
@@ -992,7 +1010,7 @@ export class Menus {
         m.beta ? h('span', { class: 'iw-beta iw-mode__beta' }, 'PUBLIC BETA') : null,
         h('span', { class: 'iw-mode__tape' }, h('span', { class: 'iw-display' }, m.name)),
         h('span', { class: 'iw-mode__blurb' }, m.blurb),
-        h('span', { class: 'iw-mode__chips' }, m.chips.map(([ic, t]) => h('span', { class: 'iw-chip' }, h('i', { html: ic }), t))),
+        h('span', { class: 'iw-mode__chips' }, m.chips.map(([ic, txt]) => h('span', { class: 'iw-chip' }, h('i', { html: ic }), /^\d+:00 \+ OT$/.test(txt) ? t('{n}:00 + OT', { n: txt.split(':')[0] }) : txt))),
         m.badge ? h('span', { class: 'iw-mode__new' }, m.badge) : null,
         h('span', { class: 'iw-mode__go' }, h('i', { html: GLYPHS.play }), 'SELECT'));
       c.dataset.cur = 'own';
@@ -1224,10 +1242,10 @@ export class Menus {
     const dOpts = Object.values(diffs).map((d) => [d.id, h('span', { class: 'iw-diffopt' }, h('span', { class: 'iw-pips' }, Array.from({ length: 3 }, (_, k) => h('i', { class: k < (DIFF_INFO[d.id]?.pips || 2) ? 'on' : '' }))), d.name)]);
     const dText = h('div', { class: 'iw-setup__desc' });
     const diffSeg = this._seg(dOpts, st.difficulty, (v) => {
-      st.difficulty = v; dText.textContent = diffText(v); restartAnim(dText, 'is-in');
+      st.difficulty = v; dText.textContent = t(diffText(v)); restartAnim(dText, 'is-in');
       safeCall(() => this.api.setSettings && this.api.setSettings({ difficulty: v })); updateStart();
     });
-    dText.textContent = diffText(st.difficulty);
+    dText.textContent = t(diffText(st.difficulty));
     const diffRow = h('div', { class: 'iw-setrow iw-setrow--stack' }, h('div', { class: 'iw-setrow__label' }, h('i', { html: boss ? BOSS_GLYPH : GLYPHS.bot }), boss ? 'DIFFICULTY' : 'BOT SKILL'), diffSeg.el);
     this._bind(diffRow, { id: 'difficulty', type: 'row', adjust: diffSeg.adjust, accept: diffSeg.cycle });
     const lOpts = durations.map((d) => [d, durLabel(d)]);
@@ -1267,7 +1285,7 @@ export class Menus {
     const updateStart = () => {
       const m = byId(st.mapId);
       // mode · stage · time (+ the length Turf War lets you pick; bot skill sits right beside it in its own panel)
-      startSub.textContent = `${MODE_INFO[st.mode].name} · ${m ? m.name : ''} · ${TIME_INFO[timeOf(st.mapId)].label}${st.mode === 'zones' ? '' : ` · ${durLabel(st.duration)}`}`;
+      startSub.textContent = `${t(MODE_INFO[st.mode].name)} · ${m ? t(m.name) : ''} · ${t(TIME_INFO[timeOf(st.mapId)].label)}${st.mode === 'zones' ? '' : ` · ${durLabel(st.duration)}`}`;
       // long stage names: tighten the line a touch rather than cut it off
       requestAnimationFrame(() => {
         const box = startSub.parentElement;
@@ -1279,18 +1297,18 @@ export class Menus {
 
     // ---- state changes
     const renderTime = (anim) => {
-      const t = timeOf(st.mapId);
-      tgl.dataset.time = t; hero.dataset.time = t; el.dataset.time = t;
-      optDay.classList.toggle('is-on', t === 'day'); optDusk.classList.toggle('is-on', t === 'dusk');
-      timeText.textContent = TIME_INFO[t].text;
+      const tod = timeOf(st.mapId);
+      tgl.dataset.time = tod; hero.dataset.time = tod; el.dataset.time = tod;
+      optDay.classList.toggle('is-on', tod === 'day'); optDusk.classList.toggle('is-on', tod === 'dusk');
+      timeText.textContent = t(TIME_INFO[tod].text);
       if (anim) { restartAnim(tgl, 'is-flip'); restartAnim(timeText, 'is-in'); }
       updateStart();
     };
     const renderStage = (anim) => {
       const m = byId(st.mapId), i = maps.indexOf(m);
-      nameEl.innerHTML = m.name.split(' ').map((w, wi) => `<span class="iw-ss__word">${[...w].map((ch, k) => `<span style="--i:${wi * 4 + k}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
-      blurbEl.textContent = m.blurb || '';
-      counter.innerHTML = `STAGE <b>${String(i + 1).padStart(2, '0')}</b><em>/ ${String(maps.length).padStart(2, '0')}</em>`;
+      nameEl.innerHTML = t(m.name).split(' ').map((w, wi) => `<span class="iw-ss__word">${[...w].map((ch, k) => `<span style="--i:${wi * 4 + k}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
+      blurbEl.textContent = t(m.blurb || '');
+      counter.innerHTML = `${t('STAGE')} <b>${String(i + 1).padStart(2, '0')}</b><em>/ ${String(maps.length).padStart(2, '0')}</em>`;
       layoutMap.innerHTML = m.thumb || mapThumb(m, i + 2);
       if (anim) { restartAnim(caption, 'is-in'); restartAnim(layoutEl, 'is-in'); restartAnim(counter, 'is-in'); }
       renderTime(false);
@@ -1594,7 +1612,7 @@ export class Menus {
         const grid = h('div', { class: `iw-lgrid iw-lgrid--${sec.art === 'portrait' ? sec.kind : 'swatch'}`, style: { '--cols': cols(sec) } });
         for (let i = 0; i < sec.count; i++) { const t = makeTile(sec, i, tiles.length); tiles.push(t); grid.appendChild(t); }
         gridWrap.appendChild(h('section', { class: 'iw-lsec', style: { '--dir': dirSign } },
-          h('div', { class: 'iw-lsec__title' }, h('span', null, sec.title), h('small', null, `${sec.count} ${sec.key === '_presets' ? 'LOOKS' : 'OPTIONS'}`)), grid));
+          h('div', { class: 'iw-lsec__title' }, h('span', null, t(sec.title)), h('small', null, `${sec.count} ${t(sec.key === '_presets' ? 'LOOKS' : 'OPTIONS')}`)), grid));
       }
       refresh();
       requestPortraits();
@@ -1626,12 +1644,12 @@ export class Menus {
         handles.push(hd);
       }
     };
-    const showInfo = (t) => {
-      const sec = t._sec, i = t._i;
-      infoSub.textContent = sec.key === '_presets' ? 'SQUIDKID' : sec.title;
-      infoName.textContent = optName(sec, i);
-      infoText.textContent = sec.key === '_presets' ? (presets[i].blurb || '') : `${i + 1} of ${sec.count}`;
-      info.classList.toggle('is-on', isOn(t));
+    const showInfo = (tl) => {
+      const sec = tl._sec, i = tl._i;
+      infoSub.textContent = t(sec.key === '_presets' ? 'SQUIDKID' : sec.title);
+      infoName.textContent = t(optName(sec, i));
+      infoText.textContent = sec.key === '_presets' ? t(presets[i].blurb || '') : t('{n} of {m}', { n: i + 1, m: sec.count });
+      info.classList.toggle('is-on', isOn(tl));
       restartAnim(info, 'is-swap');
     };
     // the current look as a sticker sheet (one chip per slot)
@@ -1643,7 +1661,7 @@ export class Menus {
         const dot = sec.art === 'skin' ? `<i class="iw-lsheet__dot" style="background:${LOOK.SKIN_TONES[i]}"></i>`
           : sec.art === 'iris' ? `<i class="iw-lsheet__dot" style="background:linear-gradient(${LOOK.IRIS[i][0]},${LOOK.IRIS[i][1]})"></i>`
             : k === 'outfit' ? `<i class="iw-lsheet__dot" style="background:linear-gradient(135deg,${LOOK.OUTFITS[i].shirt} 50%,${LOOK.OUTFITS[i].shorts} 50%)"></i>` : '';
-        sheet.appendChild(h('div', { class: 'iw-lsheet__row', html: `<small>${label}</small>${dot}<b>${esc(optName(sec, i))}</b>` }));
+        sheet.appendChild(h('div', { class: 'iw-lsheet__row', html: `<small>${esc(t(label))}</small>${dot}<b>${esc(t(optName(sec, i)))}</b>` }));
       }
     };
 
@@ -1797,8 +1815,8 @@ export class Menus {
     const renderSub = () => {
       const sb = this._sub();
       subIcon.innerHTML = SUB_ICONS[sb.id] || SUB_ICONS.bomb;
-      subName.textContent = sb.name;
-      subBlurb.textContent = `${sb.blurb || ''} Uses ${Math.round(sb.inkCost)}% of your ink.`;
+      subName.textContent = t(sb.name);
+      subBlurb.textContent = `${t(sb.blurb || '')} ${t('Uses {n}% of your ink.', { n: Math.round(sb.inkCost) })}`;
     };
     const cycleSub = (d) => {
       const i = subOrder.indexOf(this._sub().id);
@@ -1816,8 +1834,8 @@ export class Menus {
     const renderSp = () => {
       const sp = this._special();
       spIcon.innerHTML = specialIcon(sp.id);
-      spName.textContent = sp.name;
-      spBlurb.textContent = sp.blurb || '';
+      spName.textContent = t(sp.name);
+      spBlurb.textContent = t(sp.blurb || '');
     };
     const cycleSp = (d) => {
       const i = spOrder.indexOf(this._special().id);
@@ -1838,12 +1856,12 @@ export class Menus {
       const first = shown === id && !entered;
       shown = id;
       const w = Ws[id], eqW = Ws[equipped];
-      kind.textContent = classOf(w).toUpperCase();
-      nm.textContent = w.name;
-      blurb.textContent = w.blurb || '';
+      kind.textContent = t(classOf(w)).toUpperCase();
+      nm.textContent = t(w.name);
+      blurb.textContent = t(w.blurb || '');
       detail.classList.toggle('is-equipped', id === equipped);
       detail.classList.toggle('is-compare', id !== equipped);
-      cmpBadge.lastChild.textContent = eqW.name;
+      cmpBadge.lastChild.textContent = t(eqW.name);
       for (const s of statEls) {
         const v = clamp((w.stats && w.stats[s.k]) || 0);
         const g = clamp((eqW.stats && eqW.stats[s.k]) || 0);
@@ -1860,7 +1878,7 @@ export class Menus {
       renderSp();
       renderSub();
       spCost.textContent = w.specialCost ? `${Math.round(w.specialCost)}p` : '';
-      spCost.title = 'Turf points to fill the special gauge';
+      spCost.title = t('Turf points to fill the special gauge');
       markSeen(id);
       if (!first) restartAnim(detail, 'is-swap');
     };
@@ -1943,7 +1961,7 @@ export class Menus {
     };
   }
 
-  // ================================================================ controls: segmented / slider / toggle
+  // ================================================================ controls: segmented / slider / toggle / select
   _seg(options, value, onChange) {
     let idx = Math.max(0, options.findIndex((o) => o[0] === value));
     const opts = options.map(([v, label], i) => {
@@ -1971,6 +1989,107 @@ export class Menus {
       cycle: () => set((idx + 1) % options.length, true),
       refresh: (v) => { const i = options.findIndex((o) => o[0] === v); if (i >= 0 && i !== idx) { idx = i; el.style.setProperty('--idx', idx); opts.forEach((o, k) => o.classList.toggle('is-sel', k === idx)); } },
     };
+  }
+
+  /** A dropdown (row type 'select'): closed it shows the current value, Enter/click opens the list, ↑↓ pick,
+   *  Enter commits, Esc/B closes. Where `_seg` runs out of room this scales to any number of options — the language
+   *  picker today, more later. While open the control owns the nav keys via `this._dd` (see _nav / _swap). */
+  _select(options, value, onChange) {
+    let idx = Math.max(0, options.findIndex((o) => o[0] === value));
+    let cur = idx, open = false;
+    const valEl = h('span', { class: 'iw-drop__val' });
+    const el = h('span', { class: 'iw-drop' }, valEl, h('i', { class: 'iw-drop__caret', html: GLYPHS.next }));
+    const scrim = h('div', { class: 'iw-drop__scrim' });
+    const list = h('div', { class: 'iw-drop__list' });
+    const opts = options.map(([, label], i) => {
+      const o = h('button', { class: 'iw-drop__opt' },
+        h('span', { class: 'iw-drop__optlab' }, label), h('i', { class: 'iw-drop__tick', html: GLYPHS.check }));
+      o.addEventListener('pointerenter', () => { if (!open || cur === i) return; cur = i; paint(); this._sfx('ui_hover', 0.5); });
+      o.addEventListener('click', (e) => { e.stopPropagation(); commit(i); });
+      return o;
+    });
+    list.append(...opts);
+    const paint = () => {
+      valEl.textContent = options[idx] ? options[idx][1] : '';
+      opts.forEach((o, i) => { o.classList.toggle('is-sel', i === idx); o.classList.toggle('is-cur', i === cur); });
+      el.classList.toggle('is-open', open);
+    };
+    // fixed positioning from the control's viewport rect: the panel scrolls/clips, the list must not.
+    // Runs twice (open + next frame): the height is only final once the list has been laid out.
+    const place = () => {
+      const r = el.getBoundingClientRect();
+      const w = Math.max(r.width, 170);
+      list.style.width = `${w}px`;
+      list.style.left = `${clamp(r.right - w, 10, Math.max(10, innerWidth - w - 10))}px`;
+      list.style.top = `${r.bottom + 8}px`;                     // default: drop down from the control
+      const hgt = list.getBoundingClientRect().height;
+      const room = innerHeight - r.bottom - 12;
+      if (hgt > room && r.top - 12 > room) list.style.top = `${Math.max(12, r.top - 8 - hgt)}px`;   // flip above when it fits better
+    };
+    const close = (back) => {
+      if (!open) return false;
+      open = false;
+      if (this._dd === api) this._dd = null;
+      scrim.remove(); list.remove();
+      paint();
+      if (back) this._sfx('ui_back');
+      return true;
+    };
+    const openList = () => {
+      if (open) return true;
+      if (this._dd) this._dd.close();
+      open = true; cur = idx;
+      this._dd = api;
+      this.el.append(scrim, list);        // outside the panel so its scroll box can't clip the list
+      paint();
+      place();
+      requestAnimationFrame(() => { if (open) place(); });     // settle once the options have their real height
+      this._sfx('ui_toggle');
+      return true;
+    };
+    const commit = (i) => {
+      const changed = i !== idx;
+      idx = i; cur = i;
+      close(false);
+      paint();
+      if (!changed) { this._sfx('ui_click'); return; }
+      this._sfx('ui_confirm');
+      onChange(options[i][0]);
+    };
+    const api = {
+      el,
+      refresh: (v) => { const i = options.findIndex((o) => o[0] === v); if (i >= 0 && i !== idx) { idx = i; cur = i; paint(); } },
+      accept: () => (open ? commit(cur) : openList()),
+      open: openList,
+      close,
+      // ←/→ step straight through the options (the settings rows advertise "adjust"); the list is for picking by sight
+      adjust: (d) => {
+        const i = (idx + d + options.length) % options.length;
+        if (open || i === idx) return;
+        idx = i; cur = i;
+        paint();
+        this._sfx('ui_toggle');
+        onChange(options[i][0]);
+      },
+      /** returns true when the open list consumed the key */
+      nav: (dir) => {
+        if (!open) return false;
+        if (dir === 'up' || dir === 'down') {
+          cur = (cur + (dir === 'up' ? -1 : 1) + options.length) % options.length;
+          paint();
+          opts[cur].scrollIntoView?.({ block: 'nearest' });
+          this._sfx('ui_toggle', 0.5);
+          return true;
+        }
+        if (dir === 'accept') { commit(cur); return true; }
+        if (dir === 'back') { close(true); return true; }
+        return true;                                  // swallow the rest (tabs, adjusts) until it closes
+      },
+    };
+    scrim.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); close(true); });
+    el.addEventListener('click', (e) => { e.stopPropagation(); if (open) close(false); else openList(); });
+    paint();
+    return api;
   }
 
   _slider(row, value) {
@@ -2041,6 +2160,7 @@ export class Menus {
 
   // ================================================================ SCREEN: settings
   _scr_settings() {
+    const SETTINGS_TABS = settingsTabs();   // per-open: labels in the current language
     let tabIdx = this._settingsTab || 0;
     const tabsEl = h('div', { class: 'iw-tabs' });
     const rowsEl = h('div', { class: 'iw-rows' });
@@ -2067,7 +2187,7 @@ export class Menus {
       const o = (r.options || []).find((x) => x[0] === v);
       return o ? o[1] : String(v);
     };
-    const fmtVal = (r, v) => (!r ? '' : r.type === 'slider' ? r.fmt(+v) : r.type === 'toggle' ? (v ? 'ON' : 'OFF') : r.type === 'seg' ? optLabel(r, v).toUpperCase() : '');
+    const fmtVal = (r, v) => (!r ? '' : r.type === 'slider' ? r.fmt(+v) : r.type === 'toggle' ? (v ? t('common.on') : t('common.off')) : (r.type === 'seg' || r.type === 'select') ? optLabel(r, v).toUpperCase() : '');
     const showPreview = (key, { label, help, tab } = {}) => {
       if (P.key === key) return;
       P.key = key;
@@ -2095,9 +2215,10 @@ export class Menus {
       const tab = SETTINGS_TABS[tabIdx];
       tab.rows.forEach((r, i) => {
         let ctrl;
-        if (r.type === 'link') ctrl = { el: h('span', { class: 'iw-row__link' }, 'VIEW', h('i', { html: GLYPHS.next })), accept: () => { this._sfx('ui_click'); this._go('howto'); } };
+        if (r.type === 'link') ctrl = { el: h('span', { class: 'iw-row__link' }, t('common.view'), h('i', { html: GLYPHS.next })), accept: () => { this._sfx('ui_click'); this._go('howto'); } };
         else if (r.type === 'slider') ctrl = this._slider(r, s[r.key]);
         else if (r.type === 'toggle') ctrl = this._toggle(r, s[r.key]);
+        else if (r.type === 'select') ctrl = this._select(r.options, s[r.key], (v) => this._setSetting(r.key, v));
         else {
           let options = r.options;
           if (r.key === 'difficulty') options = Object.values(this._diffs()).map((d) => [d.id, d.name]);
@@ -2142,15 +2263,15 @@ export class Menus {
     buildRows(1);
 
     let resetArmed = 0;
-    const reset = this._btn({ id: 'reset', label: 'RESET TO DEFAULTS', icon: GLYPHS.reset, cls: 'iw-btn--ghost iw-btn--small', sound: null, accept: () => {
+    const reset = this._btn({ id: 'reset', label: t('common.reset'), icon: GLYPHS.reset, cls: 'iw-btn--ghost iw-btn--small', sound: null, accept: () => {
       if (!resetArmed) {
         resetArmed = 2.6; reset.classList.add('is-armed');
-        reset.querySelector('.iw-btn__label').textContent = 'PRESS AGAIN TO CONFIRM';
+        reset.querySelector('.iw-btn__label').textContent = t('common.pressAgain');
         this._sfx('ui_click');
         return;
       }
       resetArmed = 0; reset.classList.remove('is-armed');
-      reset.querySelector('.iw-btn__label').textContent = 'RESET TO DEFAULTS';
+      reset.querySelector('.iw-btn__label').textContent = t('common.reset');
       safeCall(() => this.api.setSettings && this.api.setSettings({ ...DEFAULT_SETTINGS }));
       if (!this._accentExternal) this._applyAccent();
       const s = this._settings();
@@ -2159,27 +2280,31 @@ export class Menus {
       rowsEl.querySelectorAll('.iw-row').forEach((r) => restartAnim(r, 'is-flash'));
       savedPulse();
     } });
-    const saved = h('div', { class: 'iw-saved' }, h('i', { html: GLYPHS.check }), h('span', null, 'Changes save automatically'));
-    const savedPulse = () => { saved.lastChild.textContent = 'Saved!'; restartAnim(saved, 'is-on'); clearTimeout(this._savedT); this._savedT = setTimeout(() => { if (saved.isConnected) saved.lastChild.textContent = 'Changes save automatically'; }, 1400); };
+    const saved = h('div', { class: 'iw-saved' }, h('i', { html: GLYPHS.check }), h('span', null, t('common.savedAuto')));
+    const savedPulse = () => { saved.lastChild.textContent = t('common.savedPulse'); restartAnim(saved, 'is-on'); clearTimeout(this._savedT); this._savedT = setTimeout(() => { if (saved.isConnected) saved.lastChild.textContent = t('common.savedAuto'); }, 1400); };
 
     const panel = this._panel('iw-settings__panel iw-in', tabsEl, rowsEl, h('div', { class: 'iw-settings__foot' }, saved, reset));
     const el = h('div', { class: 'iw-screen iw-settings' },
       h('div', { class: 'iw-scrim-left' }),
-      this._header('SETTINGS', { sub: 'Changes apply instantly' }),
+      this._header(t('settings.title'), { sub: t('settings.sub') }),
       panel, card,
-      this._prompts([[['←', '→'], 'DPad', 'Adjust'], [['Q', 'E'], null, 'Tabs'], ['Esc', 'B', 'Back']]));
+      this._prompts([[['←', '→'], 'DPad', t('settings.adjust')], [['Q', 'E'], null, t('settings.tabs')], ['Esc', 'B', t('settings.back')]]));
     el.querySelector('.iw-prompts').children[1].querySelector('.iw-padg').innerHTML = padGlyph('LB') + padGlyph('RB');
+    const BLURBS = tabBlurbs();
     return {
       el,
       initial: () => rowsEl.querySelector('[data-nav]'),
       afterMount: () => movePill(true),
       onFocus: (f) => {
         if (f._key) showPreview(f._key);
-        else if (f.dataset.nav === 'tab') { const t = SETTINGS_TABS[tabBtns.indexOf(f)]; if (t) showPreview('_tab_' + t.id, { label: t.label, help: TAB_BLURB[t.id], tab: t }); }
-        else if (f.dataset.id === 'reset') showPreview('_reset', { label: 'Reset', help: 'Restore every setting to its original value.' });
+        else if (f.dataset.nav === 'tab') { const t = SETTINGS_TABS[tabBtns.indexOf(f)]; if (t) showPreview('_tab_' + t.id, { label: t.label, help: BLURBS[t.id], tab: t }); }
+        else if (f.dataset.id === 'reset') showPreview('_reset', { label: t('settings.reset.previewLabel'), help: t('settings.reset.previewHelp') });
       },
       onSetting: (key, value) => {
         savedPulse();
+        // the language row: everything on this screen re-resolves — rebuild it in the new language
+        // (direct _swap: re-mounts the screen in place, keeps the nav stack intact)
+        if (key === 'lang') { setTimeout(() => this._swap('settings', {}), 0); return; }
         if (P.key === key && P.cur) {
           const s = this._settings();
           safeCall(() => P.cur.set(value, s));
@@ -2200,7 +2325,7 @@ export class Menus {
         if (P.cur && P.cur.tick) P.cur.tick(dt);
         if (resetArmed > 0) {
           resetArmed -= dt;
-          if (resetArmed <= 0) { resetArmed = 0; reset.classList.remove('is-armed'); reset.querySelector('.iw-btn__label').textContent = 'RESET TO DEFAULTS'; }
+          if (resetArmed <= 0) { resetArmed = 0; reset.classList.remove('is-armed'); reset.querySelector('.iw-btn__label').textContent = t('common.reset'); }
         }
       },
     };
@@ -2208,7 +2333,7 @@ export class Menus {
 
   // ================================================================ SCREEN: howto
   _controlsList(mode, compact = false) {
-    const K = (...ks) => ks.map((k) => (k === 'or' ? '<em>or</em>' : k === 'LMB' ? mouseGlyph('L') : k === 'RMB' ? mouseGlyph('R') : k === 'MOUSE' ? mouseGlyph('M') : keycap(k))).join('');
+    const K = (...ks) => ks.map((k) => (k === 'or' ? `<em>${t('or')}</em>` : k === 'LMB' ? mouseGlyph('L') : k === 'RMB' ? mouseGlyph('R') : k === 'MOUSE' ? mouseGlyph('M') : keycap(k))).join('');
     const rows = [
       ['Move', null, K('W', 'A', 'S', 'D'), padGlyph('LS')],
       ['Aim', null, K('MOUSE'), padGlyph('RS')],
@@ -2242,7 +2367,7 @@ export class Menus {
       ['penalty', 'Don’t lose it', 'If they take the zone from you, ¾ of what you counted since you took it becomes a penalty: your count won’t move until you count it off.'],
     ];
     const card = ([art, title, text], i, zones) => h('div', { class: 'iw-rule iw-in iw-in--pop', style: { '--tilt': `${[-1.2, 1, 0.8, -1][i]}deg` } },
-      h('div', { class: 'iw-rule__art' + (zones ? ' is-zone' : ''), html: zones ? ZONE_RULE_ART[art] : RULE_ART[art] }),
+      h('div', { class: 'iw-rule__art' + (zones ? ' is-zone' : ''), html: zones ? zoneRuleArt()[art] : RULE_ART[art] }),
       h('div', { class: 'iw-rule__num' }, String(i + 1)),
       h('div', { class: 'iw-rule__title' }, title),
       h('p', { class: 'iw-rule__text' }, text));
@@ -2257,7 +2382,7 @@ export class Menus {
       const zones = rulesMode === 'zones';
       rulesEl.replaceChildren(...(zones ? zoneRules : rules).map((r, i) => card(r, i, zones)));
       notesSlot.replaceChildren(...(zones ? [zoneNotes()] : []));
-      if (headSub) headSub.textContent = `${MODE_INFO[rulesMode].name} in 30 seconds`;
+      if (headSub) headSub.textContent = t('{mode} in 30 seconds', { mode: t(MODE_INFO[rulesMode].name) });
       if (anim) restartAnim(rulesEl, 'is-swap');
     };
     const rOpts = BATTLE_MODES.map((mi) => [mi.id, h('span', { class: 'iw-segico' }, h('i', { html: mi.icon }), mi.label)]);
@@ -2272,7 +2397,7 @@ export class Menus {
     const segRow = h('div', { class: 'iw-ctl-switch' }, seg.el);
     this._bind(segRow, { id: 'scheme', type: 'row', adjust: seg.adjust, accept: seg.cycle });
     renderList();
-    const head = this._header('HOW TO PLAY', { sub: `${MODE_INFO[rulesMode].name} in 30 seconds` });
+    const head = this._header('HOW TO PLAY', { sub: t('{mode} in 30 seconds', { mode: t(MODE_INFO[rulesMode].name) }) });
     headSub = head.querySelector('.iw-head__sub');
     renderRules(false);
     const el = h('div', { class: 'iw-screen iw-howto' },
@@ -2364,18 +2489,27 @@ export class Menus {
     if (state === 'match') { if (n.isMock && cur === 'lobby') this.show(null, { instantLeave: true }); return; }
     if (state === 'lobby') { if (n.isMock && (cur === null || cur === 'results')) this.show('lobby'); return; }
     if ((state === 'error' || state === 'offline') && !this._leavingRoom) {
-      if (cur === 'lobby' || (this._stack[0] === 'lobby' && cur)) this._roomGone(n.error || 'You left the room');
+      // the error code identifies the failure; 'left' is the plain "you closed the room yourself" case
+      if (cur === 'lobby' || (this._stack[0] === 'lobby' && cur)) this._roomGone(n.errorCode || n.error || 'left');
     }
   }
 
+  /** Message id for a net failure (error code or legacy text) — for callers that only want the line, e.g. main.js
+   *  toasting a dropped connection after quitting a match. The id is translated by the toast's own h() plumbing. */
+  netErrorText(key) {
+    const E = joinErrOf(key);
+    return E ? E.short : 'Lost connection to the room';
+  }
+
   /** The room went away under us (connection lost / closed): back to the hub with the reason. */
-  _roomGone(msg) {
+  _roomGone(key) {
     const sc = this._sc();
     safeCall(() => sc && sc.leaveLobby && sc.leaveLobby());
     if (this._modal) this._closeModal(true);
     this.show('online', { wipe: true, back: true });
-    const E = JOIN_ERR[msg];
-    this.toast(E ? `${E.title[0]}${E.title.slice(1).toLowerCase()} — ${E.text.split('.')[0]}.` : msg, { kind: 'error', icon: GLYPHS[(E && E.icon) || 'exit'], ms: 5200 });
+    const E = joinErrOf(key);
+    // one message id (translated by toast's own h() plumbing) — no title/sentence splicing
+    this.toast(E ? E.short : (key === 'left' ? 'You left the room' : String(key || 'Left the room')), { kind: 'error', icon: GLYPHS[(E && E.icon) || 'exit'], ms: 5200 });
   }
 
   _teamColors() { return this._accent(); }
@@ -2519,11 +2653,11 @@ export class Menus {
       join.classList.toggle('is-entry', st.mode !== 'idle');
       joinBtn.classList.toggle('is-ready', full() && st.mode !== 'connecting');
       joinBtn.classList.toggle('is-cancel', st.mode === 'connecting');
-      joinBtn.firstChild.textContent = st.mode === 'connecting' ? 'CANCEL' : 'JOIN';
+      joinBtn.firstChild.textContent = t(st.mode === 'connecting' ? 'CANCEL' : 'JOIN');
       el.classList.toggle('is-connecting', st.mode === 'connecting' || create.classList.contains('is-busy'));
       el.classList.toggle('is-entry', st.mode === 'entry' || st.mode === 'error');
-      if (st.mode === 'idle') hintEl.textContent = 'Room codes are 5 letters & numbers';
-      else if (st.mode === 'entry') hintEl.textContent = full() ? 'Press JOIN (or Enter) to hop in' : st.input === 'pad' ? '↑↓ pick a letter · A to confirm' : 'Type or paste the code';
+      if (st.mode === 'idle') hintEl.textContent = t('Room codes are 5 letters & numbers');
+      else if (st.mode === 'entry') hintEl.textContent = full() ? t('Press JOIN (or Enter) to hop in') : st.input === 'pad' ? t('↑↓ pick a letter · A to confirm') : t('Type or paste the code');
     };
     const setMode = (m) => { st.mode = m; render(); };
     const clearError = () => { if (st.mode === 'error') { st.mode = 'entry'; join.classList.remove('is-err'); jstat.classList.remove('is-on'); } };
@@ -2590,7 +2724,7 @@ export class Menus {
       let pick = (up.match(/\b[A-Z0-9]{5}\b/g) || []).reverse().find((w) => [...w].every((c) => CODE_ABC.includes(c)));
       if (!pick) { const raw = up.replace(/[^A-Z0-9]/g, ''); pick = raw.length <= 8 ? raw : ''; }
       const clean = [...pick].filter((c) => CODE_ABC.includes(c)).slice(0, 5);
-      if (!clean.length) { hintEl.textContent = 'Nothing that looks like a room code on the clipboard'; this._sfx('ui_error'); restartAnim(codeRow, 'is-shake'); return; }
+      if (!clean.length) { hintEl.textContent = t('Nothing that looks like a room code on the clipboard'); this._sfx('ui_error'); restartAnim(codeRow, 'is-shake'); return; }
       if (st.mode === 'idle') enterEntry(0);
       clearError();
       st.code = ['', '', '', '', ''];
@@ -2601,13 +2735,13 @@ export class Menus {
     };
     const readClipboard = () => {
       if (navigator.clipboard && navigator.clipboard.readText) {
-        navigator.clipboard.readText().then(pasteCode, () => { enterEntry(firstEmpty()); hintEl.textContent = 'Press Ctrl+V (⌘V) to paste'; });
-      } else { enterEntry(firstEmpty()); hintEl.textContent = 'Press Ctrl+V (⌘V) to paste'; }
+        navigator.clipboard.readText().then(pasteCode, () => { enterEntry(firstEmpty()); hintEl.textContent = t('Press Ctrl+V (⌘V) to paste'); });
+      } else { enterEntry(firstEmpty()); hintEl.textContent = t('Press Ctrl+V (⌘V) to paste'); }
     };
-    const showError = (msg) => {
-      const E = JOIN_ERR[msg] || { title: 'COULDN’T JOIN', text: msg || 'Something went wrong. Try again.', icon: 'close' };
+    const showError = (key) => {
+      const E = joinErrOf(key) || { title: 'COULDN’T JOIN', text: 'Something went wrong. Try again.', icon: 'close' };
       errIcon.innerHTML = GLYPHS[E.icon] || GLYPHS.close;
-      errTitle.textContent = E.title; errText.textContent = E.text;
+      errTitle.textContent = t(E.title); errText.textContent = t(E.text);
       jstat.classList.add('is-on'); restartAnim(jstat, 'is-in');
       join.classList.add('is-err'); restartAnim(codeRow, 'is-shake');
       st.mode = 'error'; st.caret = 4;
@@ -2620,16 +2754,16 @@ export class Menus {
       const code = st.code.join('');
       if (code.length < 5) {
         st.caret = firstEmpty(); render();
-        hintEl.textContent = `${5 - code.length} more character${5 - code.length > 1 ? 's' : ''} to go`;
+        hintEl.textContent = t('{n} more characters to go', { n: 5 - code.length });
         restartAnim(boxes[st.caret], 'is-shake'); this._sfx('ui_error', 0.12);
         return;
       }
       const net = this._net();
-      if (!net) { showError('Could not connect'); return; }
+      if (!net) { showError(ERR.CONNECT); return; }
       st.busy = true;
       const tok = ++st.token;
       jstat.classList.remove('is-on'); join.classList.remove('is-err');
-      hintEl.textContent = `Connecting to room ${code}…`;
+      hintEl.textContent = t('Connecting to room {code}…', { code });
       setMode('connecting');
       this._sfx('ui_confirm');
       try {
@@ -2642,7 +2776,7 @@ export class Menus {
       } catch (e) {
         if (tok !== st.token || !st.alive) return;
         st.busy = false;
-        showError(e && e.message);
+        showError((e && (e.code || e.message)) || ERR.CONNECT);
       }
     };
     const cancelConnect = () => {
@@ -2650,7 +2784,7 @@ export class Menus {
       safeCall(() => this._net() && this._net().leave());
       create.classList.remove('is-busy'); createStatus.textContent = '';
       el.classList.remove('is-connecting');
-      hintEl.textContent = 'Cancelled';
+      hintEl.textContent = t('Cancelled');
       setMode(st.mode === 'connecting' ? 'entry' : st.mode);
       this._sfx('ui_back');
     };
@@ -2658,11 +2792,11 @@ export class Menus {
       if (st.busy) return;
       const net = this._net();
       create.classList.remove('is-err');
-      if (!net) { createStatus.textContent = 'Can’t reach the servers right now'; create.classList.add('is-err'); this._sfx('ui_error'); return; }
+      if (!net) { createStatus.textContent = t('Can’t reach the servers right now'); create.classList.add('is-err'); this._sfx('ui_error'); return; }
       st.busy = true;
       const tok = ++st.token;
       create.classList.add('is-busy');
-      createStatus.textContent = 'Opening a room';
+      createStatus.textContent = t('Opening a room');
       el.classList.add('is-connecting');
       try {
         await net.create(this._profile().name);
@@ -2676,8 +2810,8 @@ export class Menus {
         create.classList.remove('is-busy');
         el.classList.remove('is-connecting');
         create.classList.add('is-err');
-        const E = JOIN_ERR[e && e.message];
-        createStatus.textContent = E ? `${E.title} — ${E.text}` : (e && e.message) || 'Couldn’t open a room';
+        const E = joinErrOf(e && (e.code || e.message));
+        createStatus.textContent = t(E ? E.text : 'Couldn’t open a room');
         restartAnim(create, 'is-shake');
         this._sfx('ui_error');
       }
@@ -2973,14 +3107,14 @@ export class Menus {
       restartAnim(rMode, 'is-hit');
       render(false);
       hostSet(map !== (was && was.id) ? { mode: next, duration: dur, map } : { mode: next, duration: dur });
-      if (map !== (was && was.id)) { const n = maps.find((m) => m.id === map); this.toast(`${was ? was.name : 'That stage'} has no Boss Battle — switched to ${n ? n.name : 'another stage'}`, { icon: GLYPHS.map }); }
+      if (map !== (was && was.id)) { const n = maps.find((m) => m.id === map); this.toast(t('{stage} has no Boss Battle — switched to {next}', { stage: was ? t(was.name) : t('That stage'), next: n ? t(n.name) : t('another stage') }), { icon: GLYPHS.map }); }
     };
     let shownMap = null, shownTime = null;
     const renderStage = (dir = 0) => {
       const m = maps.find((x) => x.id === lob.map) || maps[0], time = lob.time === 'dusk' ? 'dusk' : 'day';
       // (the count follows the mode's stage list, so it refreshes on a mode switch too)
       const list = stageList(), k = list.indexOf(m);
-      stNum.innerHTML = `STAGE <b>${String((k < 0 ? maps.indexOf(m) : k) + 1).padStart(2, '0')}</b><em>/ ${String(list.length).padStart(2, '0')}</em>`;
+      stNum.innerHTML = `${t('STAGE')} <b>${String((k < 0 ? maps.indexOf(m) : k) + 1).padStart(2, '0')}</b><em>/ ${String(list.length).padStart(2, '0')}</em>`;
       if (m.id === shownMap && time === shownTime) return;
       const first = shownMap === null;
       shownMap = m.id; shownTime = time;
@@ -2991,9 +3125,9 @@ export class Menus {
       if (!first && !reduced) img.style.setProperty('--dir', dir < 0 ? -1 : 1), img.classList.add(dir ? 'is-slide' : 'is-fade');
       stImgs.appendChild(img);
       setTimeout(() => olds.forEach((o) => o.remove()), first ? 0 : 520);
-      stName.textContent = m.name;
+      stName.textContent = t(m.name);
       stage.dataset.time = time;
-      const rules = [m.onlineOnly ? 'ONLINE ONLY' : '', m.noBots ? 'NO BOTS' : ''].filter(Boolean).join(' · ');
+      const rules = [m.onlineOnly ? t('ONLINE ONLY') : '', m.noBots ? t('NO BOTS') : ''].filter(Boolean).join(' · ');
       stRules.lastChild.textContent = rules;
       rStage.classList.toggle('has-rules', !!rules);
       if (!first) { restartAnim(stage, 'is-hit'); restartAnim(stName, 'is-in'); }
@@ -3005,7 +3139,7 @@ export class Menus {
       const ok = () => {
         this._sfx('ui_confirm'); this._sfx('splat_small', 0.06);
         tiles.forEach((t) => restartAnim(t, 'is-wave'));
-        restartAnim(copied, 'is-on'); copyTxt.textContent = 'COPIED'; S.copied = 2.2;
+        restartAnim(copied, 'is-on'); copyTxt.textContent = t('COPIED'); S.copied = 2.2;
         this._burstAt(copyBtn, { count: 10, dist: 5, size: 0.8 });
       };
       const fallback = () => {
@@ -3016,7 +3150,7 @@ export class Menus {
           done = document.execCommand && document.execCommand('copy');
           ta.remove();
         } catch (e) { done = false; }
-        if (done) ok(); else { this._sfx('ui_error'); this.toast(`Couldn’t reach the clipboard — the code is ${c}`, { kind: 'error', icon: GLYPHS.copy }); }
+        if (done) ok(); else { this._sfx('ui_error'); this.toast(t('Couldn’t reach the clipboard — the code is {code}', { code: c }), { kind: 'error', icon: GLYPHS.copy }); }
       };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(c).then(ok, fallback);
       else fallback();
@@ -3029,8 +3163,8 @@ export class Menus {
       const heir = isHost() && others.length ? others[0].name : null;
       this._openModal({
         title: 'LEAVE ROOM?', danger: true,
-        text: heir ? `You’re the host — ${heir} takes over the room. You can come back with the code ${code}.`
-          : others.length ? `You can rejoin any time with the code ${code} while the room is open.` : 'You’re the last one here — the room closes when you leave.',
+        text: heir ? t('You’re the host — {name} takes over the room. You can come back with the code {code}.', { name: heir, code })
+          : others.length ? t('You can rejoin any time with the code {code} while the room is open.', { code }) : t('You’re the last one here — the room closes when you leave.'),
         buttons: [
           { label: 'STAY', accept: () => this._closeModal(), sound: null },
           { label: 'LEAVE', cls: 'iw-btn--danger', sound: 'ui_confirm', accept: () => { this._closeModal(true); leaveRoom(); } },
@@ -3063,7 +3197,7 @@ export class Menus {
         this._sfx('ui_error'); restartAnim(startBtn, 'is-shake');
         const waiting = players().filter((p) => !p.you && !p.ready && !p.host);
         const block = net.startBlock ? net.startBlock() : null;
-        this.toast(block || (waiting.length ? `Waiting for ${listNames(waiting)} to ready up` : 'Not ready to start yet'), { kind: 'info', icon: block ? GLYPHS.users : GLYPHS.clock });
+        this.toast(block || (waiting.length ? t('Waiting for {names} to ready up', { names: listNames(waiting) }) : 'Not ready to start yet'), { kind: 'info', icon: block ? GLYPHS.users : GLYPHS.clock });
         return;
       }
       this._sfx('ui_confirm'); this._sfx('splat_big', 0.1);
@@ -3124,8 +3258,8 @@ export class Menus {
       const kits = h('div', { class: 'iw-ldr__kits' });
       const show = (id) => {
         const w = Ws[id], eqW = Ws[equipped];
-        kind.textContent = (w.class || KIND_LABEL[w.kind] || '').toUpperCase();
-        nm.textContent = w.name; blurb.textContent = w.blurb || '';
+        kind.textContent = t(w.class || KIND_LABEL[w.kind] || '').toUpperCase();
+        nm.textContent = t(w.name); blurb.textContent = t(w.blurb || '');
         for (const s of statEls) {
           const v = clamp((w.stats && w.stats[s.k]) || 0), g = clamp((eqW.stats && eqW.stats[s.k]) || 0);
           s.bar.style.setProperty('--v', v.toFixed(3)); s.bar.style.setProperty('--g', (id === equipped ? 0 : g).toFixed(3));
@@ -3233,7 +3367,7 @@ export class Menus {
           const was = P.sig ? P.sig.split('|') : null;
           P.sig = sig; P.bw = 0;   // re-measure for the overlap pass
           if (P.name.textContent !== p.name) {
-            P.name.textContent = p.name; P.title.textContent = tagTitle(p.name);
+            P.name.textContent = t(p.name); P.title.textContent = tagTitle(p.name);
             P.art.innerHTML = tagArt(fnv(String(p.name).toLowerCase()));
             P.el.classList.toggle('is-long', p.name.length > 7); P.el.classList.toggle('is-xlong', p.name.length > 11);   // names up to 16 fit the compact tag
           }
@@ -3288,8 +3422,8 @@ export class Menus {
       let txt;
       if (ps.length >= (lob.maxPlayers || 8)) txt = waiting.length ? `Room full · ${waiting.length} not ready` : 'Room full · everyone’s ready!';
       else if (ps.length <= 1) txt = 'Share the code to fill the room';
-      else if (!waiting.length) txt = isHost() ? 'Everyone’s ready — start when you like!' : `Everyone’s ready — waiting for ${host ? host.name : 'the host'}`;
-      else txt = `${ps.length - waiting.length} of ${ps.length} ready`;
+      else if (!waiting.length) txt = isHost() ? t('Everyone’s ready — start when you like!') : t('Everyone’s ready — waiting for {name}', { name: host ? t(host.name) : t('the host') });
+      else txt = t('{n} of {m} ready', { n: ps.length - waiting.length, m: ps.length });
       statusTxt.textContent = txt;
       status.classList.toggle('is-allready', ps.length > 1 && !waiting.length);
       el.classList.toggle('is-alone', ps.length <= 1);
@@ -3299,19 +3433,19 @@ export class Menus {
       timeSeg.refresh(lob.time === 'dusk' ? 'dusk' : 'day');
       lenSeg.refresh(lob.duration);
       palSeg.refresh(palIdx());
-      { const P0 = TEAM_PALETTES[palIdx()]; palName.textContent = P0 ? P0.names.join(' vs ') : ''; }
+      { const P0 = TEAM_PALETTES[palIdx()]; palName.textContent = P0 ? t('{a} vs {b}', { a: t(P0.names[0]), b: t(P0.names[1]) }) : ''; }
       botTgl.refresh(lob.bots !== false);
       diffSeg.refresh(diffs[lob.difficulty] ? lob.difficulty : 'normal');
       const bm = bossMode(), md = lobMode(), zm = md === 'zones';
       if (rMode._shown !== md) {
         const first = rMode._shown === undefined;
         rMode._shown = md;
-        modeName.textContent = MODE_INFO[md].label;
+        modeName.textContent = t(MODE_INFO[md].label);
         modeIco.innerHTML = bm ? BOSS_GLYPH : zm ? ZONE_GLYPH : GLYPHS.flag;
         el.classList.toggle('is-bossmode', bm);
         el.classList.toggle('is-zonemode', zm);
-        diffLbl.querySelector('.iw-lset__lbltxt').textContent = bm ? 'DIFFICULTY' : 'BOT SKILL';
-        hostChip.lastChild.textContent = bm || zm ? 'HOST' : 'YOU’RE THE HOST';   // the longer headlines need the room
+        diffLbl.querySelector('.iw-lset__lbltxt').textContent = t(bm ? 'DIFFICULTY' : 'BOT SKILL');
+        hostChip.lastChild.textContent = t(bm || zm ? 'HOST' : 'YOU’RE THE HOST');   // the longer headlines need the room
         lenSegT.el.style.display = bm || zm ? 'none' : ''; lenSegB.el.style.display = bm ? '' : 'none';
         rLen.classList.toggle('is-locked', zm);
         if (!first) { restartAnim(rMode, 'is-swap'); restartAnim(status, 'is-swap'); }
@@ -3319,11 +3453,11 @@ export class Menus {
       lenSeg.refresh(lob.duration);
       rDiff.classList.toggle('is-off', lob.bots === false);
       const humans = players().length;
-      botsNote.textContent = botsLocked() ? 'No bots on this stage' : lob.bots !== false ? (humans < 8 ? `${8 - humans} bot${8 - humans === 1 ? '' : 's'} join ${bossMode() ? 'the squad' : 'in'}` : 'Room is full') : 'Empty spots stay empty';
+      botsNote.textContent = botsLocked() ? t('No bots on this stage') : lob.bots !== false ? (humans < 8 ? t('{n} bots join {where}', { n: 8 - humans, where: t(bossMode() ? 'the squad' : 'in') }) : t('Room is full')) : t('Empty spots stay empty');
       rBots.classList.toggle('is-locked', botsLocked());
-      if (bossMode()) { const P1 = TEAM_PALETTES[palIdx()]; if (P1) palName.textContent = `${P1.names[0]} squad · ${P1.names[1]} boss`; }
+      if (bossMode()) { const P1 = TEAM_PALETTES[palIdx()]; if (P1) palName.textContent = t('{a} squad · {b} boss', { a: t(P1.names[0]), b: t(P1.names[1]) }); }
       const host = players().find((p) => p.host);
-      hostName.textContent = host ? host.name : 'the host';
+      hostName.textContent = host ? t(host.name) : t('the host');
       if (prev) {
         if (prev.map !== lob.map) flash(rStage);
         if (prev.time !== lob.time) flash(rTime);
@@ -3333,11 +3467,12 @@ export class Menus {
         if (prev.difficulty !== lob.difficulty) flash(rDiff);
         if ((prev.mode || 'turf') !== (lob.mode || 'turf')) {
           flash(rMode);
-          if (!isHost()) this.toast(`${host ? host.name : 'The host'} picked ${bossMode() ? `BOSS BATTLE — everyone vs ${BOSS_NAME}!` : MODE_INFO[lobMode()].label}`, { icon: bossMode() ? BOSS_GLYPH : lobMode() === 'zones' ? ZONE_GLYPH : GLYPHS.flag });
+          if (!isHost()) this.toast(t('{host} picked {mode}', { host: host ? t(host.name) : t('The host'), mode: bossMode() ? t('BOSS BATTLE — everyone vs {boss}!', { boss: BOSS_NAME }) : t(MODE_INFO[lobMode()].label) }), { icon: bossMode() ? BOSS_GLYPH : lobMode() === 'zones' ? ZONE_GLYPH : GLYPHS.flag });
         }
         if (!isHost() && (prev.map !== lob.map || prev.time !== lob.time)) {
           const m = maps.find((x) => x.id === lob.map);
-          this.toast(`${host ? host.name : 'The host'} picked ${m ? m.name : 'a stage'}${lob.time === 'dusk' ? ' at dusk' : ''}`, { icon: GLYPHS.map });
+          const who = host ? t(host.name) : t('The host'), what = m ? t(m.name) : t('a stage');
+          this.toast(lob.time === 'dusk' ? t('{host} picked {stage} at dusk', { host: who, stage: what }) : t('{host} picked {stage}', { host: who, stage: what }), { icon: GLYPHS.map });
         }
       }
     };
@@ -3346,19 +3481,19 @@ export class Menus {
       const lo = this._loadout();
       const wid = (me && me.weapon) || lo.weapon;
       const W = Ws[wid] || Ws[lo.weapon];
-      if (wChip._wid !== wid) { wChip._wid = wid; wIcon.innerHTML = weaponIcon((W && W.kind) || wid); wName.textContent = W ? W.name : wid; if (wChip._init) restartAnim(wChip, 'is-pick'); wChip._init = true; }
+      if (wChip._wid !== wid) { wChip._wid = wid; wIcon.innerHTML = weaponIcon((W && W.kind) || wid); wName.textContent = W ? t(W.name) : wid; if (wChip._init) restartAnim(wChip, 'is-pick'); wChip._init = true; }
       const host = isHost();
       el.classList.toggle('is-host', host);
       const ready = !!(me && me.ready);
       readyBtn.classList.toggle('is-on', ready);
-      readyBtn.querySelector('.iw-btn__label').textContent = ready ? 'READY!' : 'READY?';
-      readySub.textContent = ready ? 'Press again to cancel' : 'Let the host know you’re set';
+      readyBtn.querySelector('.iw-btn__label').textContent = t(ready ? 'READY!' : 'READY?');
+      readySub.textContent = t(ready ? 'Press again to cancel' : 'Let the host know you’re set');
       const ok = host && net && net.canStart();
       startBtn.classList.toggle('is-blocked', host && !ok);
       const waiting = players().filter((p) => !p.you && !p.ready && !p.host);
       const humans = players().length;
       const block = (net && net.startBlock ? net.startBlock() : noBotsStartBlock(lob)) || null;   // humans-only stage: 2+ players, one per side
-      startSub.textContent = ok ? (humans <= 1 && lob.bots !== false ? 'Just you and the bots' : humans <= 1 ? 'Nobody to play against yet!' : 'Everyone’s ready — let’s ink!') : block || (waiting.length ? `Waiting for ${listNames(waiting)}` : 'Getting ready…');
+      startSub.textContent = ok ? t(humans <= 1 && lob.bots !== false ? 'Just you and the bots' : humans <= 1 ? 'Nobody to play against yet!' : 'Everyone’s ready — let’s ink!') : block || (waiting.length ? t('Waiting for {names}', { names: waiting.map((p) => t(p.name)).join(' · ') }) : t('Getting ready…'));
       // team seg follows your actual side unless a request is pending
       if (me && !S.pendingTeam) teamSeg.refresh(S.teamPref === 'auto' ? 'auto' : teamOf(me));
       teamRow.dataset.pick = S.teamPref === 'auto' ? 'auto' : String(S.pendingTeam ? S.pendingTeam.team : teamOf(me));
@@ -3407,23 +3542,27 @@ export class Menus {
     const flushBatch = () => {
       const j = S.joins.splice(0), l = S.leaves.splice(0).filter((p) => !j.some((x) => x.id === p.id));
       if (j.length === 1) { this.toast('joined!', { kind: 'join', color: colors()[teamOf(j[0])], tag: j[0] }); this._sfx('ui_toggle', 0.1); }
-      else if (j.length) { this.toast(`${names(j)} joined the room`, { kind: 'join', color: colors()[teamOf(j[0])] }); this._sfx('ui_toggle', 0.1); }
-      if (l.length) this.toast(`${names(l)} left`, { kind: 'leave' });
+      else if (j.length) { this.toast(t('{names} joined the room', { names: names(j) }), { kind: 'join', color: colors()[teamOf(j[0])] }); this._sfx('ui_toggle', 0.1); }
+      if (l.length) this.toast(t('{names} left', { names: names(l) }), { kind: 'leave' });
     };
     sub('host', (e) => {
       const p = players().find((x) => x.id === (e && e.hostId));
       if (!p) return;
-      this.toast(p.you ? 'You’re the host now — the room is yours' : `${p.name} is the host now`, { kind: 'good', icon: GLYPHS.crown });
+      this.toast(p.you ? 'You’re the host now — the room is yours' : t('{name} is the host now', { name: t(p.name) }), { kind: 'good', icon: GLYPHS.crown });
       if (p.you) this._sfx('special_ready', 0.2);
     });
     sub('emote', (e) => {
       if (!e) return;
       safeCall(() => sc && sc.lobbyEmote && sc.lobbyEmote(e.id, e.name));
       const P = plates.get(e.id), E = EMOTES.find((x) => x.id === e.name);
-      if (P && E) { P.bubble.innerHTML = `<i>${GLYPHS[E.icon]}</i>${esc(E.label)}`; restartAnim(P.bubble, 'is-on'); P.bubT = 1.9; }
+      if (P && E) { P.bubble.innerHTML = `<i>${GLYPHS[E.icon]}</i>${esc(t(E.label))}`; restartAnim(P.bubble, 'is-on'); P.bubT = 1.9; }
       if (e.id !== net.myId) this._sfx('ui_hover', 0.2);
     });
-    sub('error', (e) => { const m = e && e.message; if (m && /full/i.test(m) && net.state === 'lobby') this.toast(m, { kind: 'error', icon: GLYPHS.users }); });
+    // a room (or team) filling up while we sit in the lobby: the code says what happened, so this stays language-independent
+    sub('error', (e) => {
+      const code = e && e.code;
+      if ((code === ERR.FULL || code === ERR.TEAM_FULL) && net.state === 'lobby') this.toast(this.netErrorText(code), { kind: 'error', icon: GLYPHS.users });
+    });
 
     // ---- launch: countdown, super-jumps, hand over (resolves launchLobby())
     const launch = (done) => {
@@ -3440,8 +3579,8 @@ export class Menus {
       const L = S.launching;
       if (!L || L.step === n) return;
       L.step = n;
-      cdNum.textContent = n > 0 ? String(n) : 'GO!';
-      cdSub.textContent = n === 3 ? 'GET READY' : n > 0 ? '' : '';
+      cdNum.textContent = n > 0 ? String(n) : t('GO!');
+      cdSub.textContent = n === 3 ? t('GET READY') : n > 0 ? '' : '';
       countdown.classList.add('is-on');
       countdown.classList.toggle('is-go', n === 0);
       restartAnim(countdown, 'is-beat');
@@ -3578,13 +3717,13 @@ export class Menus {
             if (on !== O.on) { O.on = on; O.el.classList.toggle('is-on', on); }
             if (a) O.el.style.transform = `translate3d(${Math.round(a.x)}px,${Math.round(a.y)}px,0) scale(${clamp(a.s || 1, 0.6, 1.25).toFixed(3)})`;
             const sig = bots ? 'bot' : 'open';
-            if (O.sig !== sig) { O.sig = sig; O.txt.textContent = bots ? 'BOT' : 'OPEN'; O.el.classList.toggle('is-bot', bots); O.el.querySelector('.iw-plate__plus').innerHTML = bots ? GLYPHS.bot : GLYPHS.plus; }
+            if (O.sig !== sig) { O.sig = sig; O.txt.textContent = t(bots ? 'BOT' : 'OPEN'); O.el.classList.toggle('is-bot', bots); O.el.querySelector('.iw-plate__plus').innerHTML = bots ? GLYPHS.bot : GLYPHS.plus; }
           }
         }
         S.age += dt;
         if (S.batchT > 0) { S.batchT -= dt; if (S.batchT <= 0) flushBatch(); }
         { const acc = colors().join() + (bossMode() ? '|b' : ''); if (acc !== S.acc) { const first = !S.acc; S.acc = acc; if (!first) { for (const P of plates.values()) P.sig = ''; render(false); } } }
-        if (S.copied > 0) { S.copied -= dt; if (S.copied <= 0) copyTxt.textContent = 'COPY'; }
+        if (S.copied > 0) { S.copied -= dt; if (S.copied <= 0) copyTxt.textContent = t('COPY'); }
         if (S.emoteCd > 0) { S.emoteCd = Math.max(0, S.emoteCd - dt); emoteBtn.style.setProperty('--cd', (S.emoteCd / 1.3).toFixed(3)); }
         if (S.pendingTeam) {
           S.pendingTeam.t += dt;
@@ -3731,8 +3870,8 @@ export class Menus {
           x.el.classList.toggle('is-holding', z.owner === t);
         }
         const names = snap.names;
-        objName.textContent = z.active === 'center' ? 'CENTRE ZONE' : `${(names[z.active === 'sideA' ? 0 : 1] || TEAM_NAMES[z.active === 'sideA' ? 0 : 1]).toUpperCase()} SIDE`;
-        objState.textContent = z.owner >= 0 ? `HELD BY ${(names[z.owner] || TEAM_NAMES[z.owner]).toUpperCase()}` : 'NEUTRAL';
+        objName.textContent = z.active === 'center' ? t('CENTRE ZONE') : t('{team} SIDE', { team: (names[z.active === 'sideA' ? 0 : 1] || TEAM_NAMES[z.active === 'sideA' ? 0 : 1]) });
+        objState.textContent = z.owner >= 0 ? t('HELD BY {team}', { team: (names[z.owner] || TEAM_NAMES[z.owner]) }) : t('NEUTRAL');
         obj.dataset.owner = z.owner < 0 ? 'n' : z.owner ? 'b' : 'a';
         zoneStrip.classList.toggle('is-ot', !!z.overtime);
       };
@@ -3767,7 +3906,7 @@ export class Menus {
     const matchPanel = this._panel('iw-pmatch iw-panel--flat iw-in iw-in--right',
       h('div', { class: 'iw-pmatch__top' },
         h('div', { class: 'iw-pmatch__info' },
-          h('div', { class: 'iw-pmatch__mode' }, h('span', { class: 'iw-pmatch__tag' }, zoneMode ? 'ZONE CONTROL' : 'TURF WAR'), diff ? h('span', { class: 'iw-pmatch__diff' }, h('i', { html: GLYPHS.bot }), `${diff.name} bots`) : null),
+          h('div', { class: 'iw-pmatch__mode' }, h('span', { class: 'iw-pmatch__tag' }, zoneMode ? 'ZONE CONTROL' : 'TURF WAR'), diff ? h('span', { class: 'iw-pmatch__diff' }, h('i', { html: GLYPHS.bot }), t('{n} bots', { n: t(diff.name) })) : null),
           h('div', { class: 'iw-pmatch__map' }, h('i', { html: GLYPHS.map }), snap.map || (zoneMode ? 'Zone Control' : 'Turf War'))),
         clock),
       zoneStrip, you, teams, ctlWrap);
@@ -3778,17 +3917,17 @@ export class Menus {
     const refresh = (s) => {
       const tLeft = s.time, frac = clamp(tLeft / s.duration);
       const ot = !!(zoneMode && s.zones && s.zones.overtime);
-      clockNum.textContent = ot ? 'OT' : fmtTime(tLeft);
-      clockLbl.textContent = ot ? 'OVERTIME' : 'LEFT';
+      clockNum.textContent = ot ? t('OT') : fmtTime(tLeft);
+      clockLbl.textContent = ot ? t('OVERTIME') : t('LEFT');
       clock.style.setProperty('--f', ot ? '1' : frac.toFixed(4));
       clock.classList.toggle('is-low', tLeft <= 60 || ot);
       clock.classList.toggle('is-ot', ot);
       if (zoneRefresh && s.zones) zoneRefresh(s.zones);
       const me = s.players.find((p) => p.isSelf) || selfP;
-      sTurf.b.innerHTML = `${fmtInt(me.turf || 0)}<small>p</small>`;
+      sTurf.b.innerHTML = `${fmtInt(me.turf || 0)}<small>${esc(t('p'))}</small>`;
       sSplat.b.textContent = String(me.splats || 0);
       sDeath.b.textContent = String(me.deaths || 0);
-      sSp.b.textContent = me.special ? 'READY' : `${Math.round(clamp(me.specialFrac || 0) * 100)}%`;
+      sSp.b.textContent = me.special ? t('READY') : `${Math.round(clamp(me.specialFrac || 0) * 100)}%`;
       sSp.el.classList.toggle('is-ready', !!me.special);
       sSp.el.style.setProperty('--sp', clamp(me.specialFrac || 0).toFixed(3));
       for (const r of rosterRows) {
@@ -3800,7 +3939,7 @@ export class Menus {
         r.row.classList.toggle('is-dead', !p.alive);
         r.row.classList.toggle('is-sp', p.alive && p.special);
         if (!p.alive) r.st.innerHTML = `<span class="iw-st iw-st--dead"><i>${DEATH_ICON}</i><b>${Math.max(1, Math.ceil(p.respawn))}s</b></span>`;
-        else if (p.special) r.st.innerHTML = `<span class="iw-st iw-st--sp"><i>${specialIcon((this._weapons()[p.weapon] || {}).special)}</i>READY</span>`;
+        else if (p.special) r.st.innerHTML = `<span class="iw-st iw-st--sp"><i>${specialIcon((this._weapons()[p.weapon] || {}).special)}</i>${esc(t('READY'))}</span>`;
         else r.st.innerHTML = `<span class="iw-st iw-st--alive"><i>${SQUID}</i></span>`;
       }
     };
@@ -3906,7 +4045,7 @@ export class Menus {
     if (zd) {
       const why = ZONE_REASON[zd.reason] || ZONE_REASON.time;
       const icon = zd.reason === 'knockout' ? 'star' : zd.reason === 'time' ? 'stopwatch' : zd.reason === 'comeback' ? 'wave' : 'shield';
-      awards.match = [{ id: 'zreason', icon, label: why[win ? 0 : 1].toUpperCase(), value: '' }];
+      awards.match = [{ id: 'zreason', icon, label: t(why[win ? 0 : 1]), value: '' }];
       if (zd.overtime) awards.match.push({ id: 'zot', icon: 'stopwatch', label: 'OVERTIME', value: zd.overtimeT > 0 ? `+${fmtTime(zd.overtimeT)}` : '' });
     }
 
@@ -3915,8 +4054,8 @@ export class Menus {
     const clock = (t) => { t = Math.max(0, +t || 0); const m = Math.floor(t / 60), ss = Math.floor(t % 60); return `${m}:${ss < 10 ? '0' : ''}${ss}`; };
     const tags = boss
       ? [B.defeated
-        ? h('span', { class: 'iw-res__tag iw-res__tag--sunk' }, h('i', { html: awardIcon('stopwatch') }), `${B.name} SUNK`, h('small', null, `in ${clock(B.time)}`))
-        : h('span', { class: 'iw-res__tag iw-res__tag--escaped' }, h('i', { html: BOSS_GLYPH }), 'IT GOT AWAY', h('small', null, `${Math.max(1, Math.round((B.hpLeft || 0) * 100))}% HP left`))]
+        ? h('span', { class: 'iw-res__tag iw-res__tag--sunk' }, h('i', { html: awardIcon('stopwatch') }), t('{boss} SUNK', { boss: B.name }), h('small', null, t('in {time}', { time: clock(B.time) })))
+        : h('span', { class: 'iw-res__tag iw-res__tag--escaped' }, h('i', { html: BOSS_GLYPH }), 'IT GOT AWAY', h('small', null, t('{n}% HP left', { n: Math.max(1, Math.round((B.hpLeft || 0) * 100)) })))]
       : awards.match.map((t) => h('span', { class: `iw-res__tag iw-res__tag--${t.id}` }, h('i', { html: awardIcon(t.icon) }), t.label, t.value ? h('small', null, t.value) : null));
     const myAwards = (self ? self._aw : []).slice(0, 4);
     const medals = myAwards.map((aw, i) => { const m = h('div', { class: 'iw-medalwrap', html: medalMarkup(aw, i) }).firstElementChild; return m; });
@@ -3924,7 +4063,7 @@ export class Menus {
     const head = h('div', { class: 'iw-res__head iw-in iw-in--pop' + (win ? ' is-win' : ' is-lose') },
       h('div', { class: 'iw-res__splat', html: splatSVG({ seed: win ? 9 : 14, cls: 'iw-fta', r: 60, arms: 10, drops: 4 }) }),
       titleEl,
-      h('div', { class: 'iw-res__metarow' }, h('div', { class: 'iw-res__meta' }, h('i', { html: GLYPHS.map }), `${d.mapName || MODE_INFO[resMode].name} · ${MODE_INFO[resMode].name}`), tags,
+      h('div', { class: 'iw-res__metarow' }, h('div', { class: 'iw-res__meta' }, h('i', { html: GLYPHS.map }), `${t(d.mapName || MODE_INFO[resMode].name)} · ${t(MODE_INFO[resMode].name)}`), tags,
         boss ? h('span', { class: 'iw-beta iw-res__beta' }, 'PUBLIC BETA') : null),
       medalRow);
 
@@ -4200,7 +4339,7 @@ export class Menus {
     }
     const totalFill = segs.reduce((a, s) => a + Math.max(0, s.to - s.from), 0) || 1;
     let si = 0, cur = segs[0].from, filled = 0, pause = 0, xpTick = 0, done = false;
-    const setBar = (v, max) => { bar.style.setProperty('--t', clamp(v / Math.max(1, max)).toFixed(4)); nextEl.textContent = `${fmtInt(Math.max(0, max - v))} XP to next level`; };
+    const setBar = (v, max) => { bar.style.setProperty('--t', clamp(v / Math.max(1, max)).toFixed(4)); nextEl.textContent = t('{n} XP to next level', { n: fmtInt(Math.max(0, max - v)) }); };
     setBar(cur, segs[0].max);
     const showBd = (frac) => { for (const b of bdEls) if (!b.shown && frac >= b.at - 1e-6) { b.shown = true; b.el.classList.add('is-in'); } };
     const finish = () => {
@@ -4213,7 +4352,7 @@ export class Menus {
       const last = segs[segs.length - 1];
       if (segs.length > 1 && lvlNum.textContent !== String(last.lv)) { lvlNum.textContent = String(last.lv); xpPanel.classList.add('is-levelup'); }
       si = segs.length - 1; cur = last.to; setBar(cur, last.max);
-      gainEl.textContent = `+${fmtInt(xp.gained)} XP`;
+      gainEl.textContent = t('+{n} XP', { n: fmtInt(xp.gained) });
       showBd(1);
       done = true; xpPanel.classList.add('is-done');
       el.classList.add('is-done');
@@ -4231,7 +4370,7 @@ export class Menus {
           lobbyT += dt;
           const left = Math.max(0, backIn - lobbyT), sec = Math.ceil(left);
           if (String(sec) !== lobbySecs.textContent && sec > 0) { lobbySecs.textContent = String(sec); if (sec <= 3) restartAnim(lobbySecs, 'is-tick'); }
-          if (left <= 0 && !lobbyPill.classList.contains('is-due')) { lobbyPill.classList.add('is-due'); lobbyPill.querySelector('small').textContent = 'HEADING BACK'; lobbySecs.textContent = '\u2026'; }
+          if (left <= 0 && !lobbyPill.classList.contains('is-due')) { lobbyPill.classList.add('is-due'); lobbyPill.querySelector('small').textContent = t('HEADING BACK'); lobbySecs.textContent = '\u2026'; }
           lobbyPill.firstChild.style.setProperty('--f', (left / backIn).toFixed(4));
         }
         if (done) return;
@@ -4275,7 +4414,7 @@ export class Menus {
         cur += step; filled += step;
         setBar(cur, s.max);
         const frac = Math.min(1, filled / totalFill);
-        gainEl.textContent = `+${fmtInt(Math.min(xp.gained, frac * xp.gained))} XP`;
+        gainEl.textContent = t('+{n} XP', { n: fmtInt(Math.min(xp.gained, frac * xp.gained)) });
         showBd(frac);
         xpTick += dt;
         if (xpTick > 0.065) { xpTick = 0; this._sfx('xp_tick', 0.05); }

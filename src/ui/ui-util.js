@@ -1,5 +1,9 @@
 // INKWAVE UI — tiny DOM / colour / motion helpers shared by menus.js and hud.js.
 // Pure DOM; no three.js dependency.
+// Every string that flows through h() (kids or the `text` prop) goes through t() first, so the whole UI
+// localises without touching call sites: t() maps English source strings (the dictionary msgids) to the
+// current language and passes anything unknown (player names, numbers, dynamic text) straight through.
+import { t } from '../i18n/strings.js';
 
 // ---------------------------------------------------------------- DOM
 export function h(tag, props = null, ...kids) {
@@ -14,7 +18,8 @@ export function h(tag, props = null, ...kids) {
         else for (const s in v) { if (s.startsWith('--')) el.style.setProperty(s, v[s]); else el.style[s] = v[s]; }
       } else if (k === 'data') { for (const d in v) el.dataset[d] = v[d]; }
       else if (k === 'html') el.innerHTML = v;
-      else if (k === 'text') el.textContent = v;
+      else if (k === 'text') el.textContent = t(v);
+      else if (k === 'title' && typeof v === 'string') el.title = t(v);
       else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
       else if (v === true) el.setAttribute(k, '');
       else el.setAttribute(k, v);
@@ -27,7 +32,9 @@ function appendKids(el, kids) {
   for (const c of kids) {
     if (c == null || c === false) continue;
     if (Array.isArray(c)) appendKids(el, c);
-    else el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+    else if (typeof c === 'string') el.appendChild(document.createTextNode(t(c)));
+    else if (typeof c === 'number') el.appendChild(document.createTextNode(String(c)));
+    else el.appendChild(c);
   }
 }
 /** Parse an HTML/SVG string into its first element. */
@@ -37,6 +44,15 @@ export function frag(markup) {
   return t.content.firstElementChild;
 }
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------------------------------------------------------------- localisable one-liners (prompts, feed, toasts)
+// A line the game hands to the HUD is either a plain string (an i18n message id, translated like any h() text) or a
+// descriptor `{ id, params }` for sentences with interpolated names/numbers — `t(id, params)` fills the placeholders,
+// so the surrounding words stay one translatable unit instead of being concatenated at the call site.
+/** Display text for a message id or descriptor (already in the current language). */
+export function msgText(v) { return v == null ? '' : typeof v === 'string' ? t(v) : t(v.id, v.params || null); }
+/** Identity for "did this line change?" checks — descriptors are fresh objects each frame, so compare by value. */
+export function msgKey(v) { return v == null ? null : typeof v === 'string' ? v : `${v.id}|${JSON.stringify(v.params || null)}`; }
 
 /** Restart a CSS animation on an element by toggling a class across a reflow. */
 export function restartAnim(el, cls) {

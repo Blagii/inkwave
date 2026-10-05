@@ -17,6 +17,7 @@ import { keycap, weaponIcon, richText, SUB_ICONS } from './ui-icons.js';
 import { DEATH_MARK_SVG } from './hud.js';
 import { G } from '../core/ctx.js';
 import { superJumpInfo } from '../game/minimap.js';
+import { t } from '../i18n/strings.js';
 import * as THREE from 'three';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
@@ -182,7 +183,7 @@ export class DioramaOverlay {
       if (key !== p.key) {
         p.key = key;
         if (i < 3) {
-          p.name.textContent = label;
+          p.name.textContent = t(label);
           if (weapon !== p.weapon) { p.weapon = weapon; p.icon.innerHTML = weaponIcon(weapon); }
         }
         p.state.textContent = st;
@@ -331,7 +332,7 @@ export class DioramaOverlay {
       const key = `${active ? 1 : 0}|${col}|${label}`;
       if (key === tg.key) continue;
       tg.key = key;
-      tg.label.textContent = label;
+      tg.label.textContent = t(label);
       tg.el.style.setProperty('--zc', col);
       tg.el.classList.toggle('is-active', active);
       tg.el.classList.toggle('is-held', active && held);
@@ -363,15 +364,15 @@ export class DioramaOverlay {
 
   _head() {
     const m = G.game?.mapDef;
-    this.title.textContent = (m?.name || 'Stage').toUpperCase();
-    this.when.textContent = G.game?.time === 'dusk' ? 'DUSK' : 'DAY';
+    this.title.textContent = t(m?.name || 'Stage').toUpperCase();
+    this.when.textContent = t(G.game?.time === 'dusk' ? 'DUSK' : 'DAY');
     const pad = G.input?.lastDevice === 'pad';
     const plan = !!this._planning;
     this.foot.innerHTML = pad
-      ? richText(plan ? 'Right stick to point · A or D-pad to plan your Super Jump · release VIEW to close' : 'Right stick to point · A or D-pad to Super Jump · release VIEW to close')
-      : `${keycap('1')}${keycap('2')}${keycap('3')} <span>${plan ? 'Plan a jump to a teammate' : 'Super Jump to a teammate'}</span> ${keycap('4')} <span>${plan ? 'Base (no jump)' : 'Base'}</span>` +
-        (G.match?.local && beaconsOf(G.match.local.team).length ? ` ${keycap('5')}–${keycap('0')} <span>Beacons</span>` : '') +
-        ` <em>·</em> <span>Point + click a pin</span> <em>·</em> <span>release</span> ${keycap('TAB')}`;
+      ? richText(t(plan ? 'Right stick to point · A or D-pad to plan your Super Jump · release VIEW to close' : 'Right stick to point · A or D-pad to Super Jump · release VIEW to close'))
+      : `${keycap('1')}${keycap('2')}${keycap('3')} <span>${t(plan ? 'Plan a jump to a teammate' : 'Super Jump to a teammate')}</span> ${keycap('4')} <span>${t(plan ? 'Base (no jump)' : 'Base')}</span>` +
+        (G.match?.local && beaconsOf(G.match.local.team).length ? ` ${keycap('5')}–${keycap('0')} <span>${t('Beacons')}</span>` : '') +
+        ` <em>·</em> <span>${t('Point + click a pin')}</span> <em>·</em> <span>${t('release')}</span> ${keycap('TAB')}`;
   }
 
   // death markers: a squid-skull in the victim's ink on the spot, fading with the record (main.js G.deathMarks)
@@ -402,8 +403,8 @@ export class DioramaOverlay {
     const first = this._last.plan == null;
     this._last.plan = key;
     this.plan.classList.toggle('is-queued', !!q);
-    this.planT.textContent = q ? `SUPER JUMP \u2192 ${q.name.toUpperCase()}` : 'PLAN YOUR SUPER JUMP';
-    this.planS.textContent = q ? 'Launches on respawn \u00b7 pick again to change' : 'Pick a teammate or beacon to jump to on respawn';
+    this.planT.textContent = q ? `${t('SUPER JUMP')} \u2192 ${t(q.name).toUpperCase()}` : t('PLAN YOUR SUPER JUMP');
+    this.planS.textContent = t(q ? 'Launches on respawn \u00b7 pick again to change' : 'Pick a teammate or beacon to jump to on respawn');
     if (!first) this.plan.animate([{ scale: '1.08' }, { scale: '1' }], { duration: 320, easing: 'cubic-bezier(.34,1.8,.64,1)' });
   }
 }

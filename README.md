@@ -5,6 +5,10 @@
 <h1 align="center">INKWAVE</h1>
 
 <p align="center">
+  <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
   An original Splatoon-style 4v4 turf-war shooter that runs in your browser.<br>
   Paint the ground, swim through your ink, out-turf the other team.
 </p>
@@ -122,6 +126,10 @@ Rendering is three.js r186 (vendored, plain ES modules with an import map) with 
 ## Browser support
 
 Chrome and Edge are the target; Firefox works. Safari runs but is slower. A discrete or recent integrated GPU is recommended for the High preset; the settings menu has Medium and Low tiers.
+
+## Languages
+
+The game ships in English and Simplified Chinese: **Settings → General → Language** (or [README.zh-CN.md](README.zh-CN.md) for this document). The choice is stored locally and applies instantly.
 
 ## Contributing
 
