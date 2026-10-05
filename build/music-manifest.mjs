@@ -7,8 +7,9 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SONGS = path.join(ROOT, 'songs');
 const FOLDERS = { battle: 'in game', battle_final: 'now or never', menu: 'lobby' };   // menu = lobby screens (shuffled)
 const AUDIO = /\.(mp3|m4a|aac|ogg|opus|wav|flac)$/i;
