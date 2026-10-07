@@ -96,9 +96,13 @@ class Game {
     this.input = G.input = new Input(this.R.renderer.domElement);
     this.input.onKey = (e, repeat) => this._onKey(e, repeat);
     this.input.onUnlock = () => this._onPointerUnlock();
-    // after a focus steal while the map was held, the next click on the game takes the mouse back (no pause detour)
+    // a click on the game takes the mouse back whenever the round is running without it: after a focus steal while the
+    // map was held (no pause detour), after Esc during the intro, or when a resume's re-lock was refused (Chrome turns
+    // pointer lock down for ~1 s after the user's Esc, and the Esc key itself is never a user gesture)
     this.R.renderer.domElement.addEventListener('mousedown', () => {
-      if (this._relock && G.mode === 'match' && this.match && !this.match.paused && !this.menus?.current) { this._relock = false; this.input.requestLock(); }
+      const m = this.match;
+      if (G.mode !== 'match' || !m || m.paused || this.menus?.current) return;
+      if (this._relock || m.state === 'intro' || m.state === 'playing') { this._relock = false; this.input.requestLock(); }
     });
 
     // modules built by other authors
