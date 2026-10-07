@@ -557,7 +557,7 @@ export class HUD {
       this.overLayer.appendChild(el);
       const snd = (n) => this._snd(n);
 
-      let t = 0, drum = false, reveal = false, punched = false, finished = false;
+      let age = 0, drum = false, reveal = false, punched = false, finished = false;
       const t0 = this._fxTime;
       let rollT = 0;
       const R = { a: 0, b: 0 };
@@ -573,18 +573,18 @@ export class HUD {
       setBars(0, 0);
       let revealFrom = { a: 0, b: 0 };
       this._addFx('judge', (dt) => {
-        t = this._fxTime - t0;
-        if (t < 0.8) return true;
+        age = this._fxTime - t0;
+        if (age < 0.8) return true;
         if (!drum) { drum = true; snd('judge_drumroll'); el.classList.add('is-racing'); }
-        if (t < 3.45) {
-          const k = easeOutCubic(clamp((t - 0.8) / 1.5));
-          const jitter = t > 2.3 ? Math.sin(t * 38) * 0.006 + Math.sin(t * 23) * 0.004 : 0;
+        if (age < 3.45) {
+          const k = easeOutCubic(clamp((age - 0.8) / 1.5));
+          const jitter = age > 2.3 ? Math.sin(age * 38) * 0.006 + Math.sin(age * 23) * 0.004 : 0;
           R.a = 0.43 * k + jitter; R.b = 0.43 * k - jitter;
           setBars(R.a, R.b);
           rollT += dt;
           if (rollT > 0.05) {
             rollT = 0;
-            if (t > 2.3) { numA.textContent = '??.?%'; numB.textContent = '??.?%'; el.classList.add('is-drum'); }
+            if (age > 2.3) { numA.textContent = '??.?%'; numB.textContent = '??.?%'; el.classList.add('is-drum'); }
             else { numA.textContent = fmt(10 + Math.random() * 60); numB.textContent = fmt(10 + Math.random() * 60); }
           }
           return true;
@@ -595,13 +595,13 @@ export class HUD {
           revealFrom = { a: R.a, b: R.b };
           clash.style.left = `${(share * 100).toFixed(2)}%`;
         }
-        const rk = clamp((t - 3.45) / 0.55);
+        const rk = clamp((age - 3.45) / 0.55);
         const e = easeOutBack(rk, 2.2);
         setBars(lerp(revealFrom.a, share, e), lerp(revealFrom.b, 1 - share, e));
-        const nk = easeOutCubic(clamp((t - 3.45) / 0.45));
+        const nk = easeOutCubic(clamp((age - 3.45) / 0.45));
         numA.textContent = fmt(pa * nk); numB.textContent = fmt(pb * nk);
-        if (!punched && t > 3.75) { punched = true; el.classList.add('is-winner', winner === 1 ? 'is-win-b' : winner === 0 ? 'is-win-a' : 'is-tie'); }
-        if (!finished && t > 5.1) {
+        if (!punched && age > 3.75) { punched = true; el.classList.add('is-winner', winner === 1 ? 'is-win-b' : winner === 0 ? 'is-win-a' : 'is-tie'); }
+        if (!finished && age > 5.1) {
           finished = true;
           resolve({ winner });
           el.classList.add('is-out');
@@ -1101,14 +1101,14 @@ export class HUD {
       const cnt = [0, 1].map((t) => whole(counts?.[t], 100)), pen = [0, 1].map((t) => whole(penalty?.[t], 0));
       const win = winner === 0 || winner === 1 ? winner : cnt[0] === cnt[1] ? -1 : cnt[0] < cnt[1] ? 0 : 1;
       const ko = reason === 'knockout';
-      const side = (t) => {
+      const side = (team) => {
         const num = h('b', { class: 'iw-jz__num' }, '100');
         const fill = h('i', { class: 'iw-jz__fill' }), penBar = h('i', { class: 'iw-jz__penbar' });
-        const el = h('div', { class: `iw-jz__team ${t ? 'b' : 'a'}` },
-          h('span', { class: 'iw-jd__name' }, names[t] || TEAM_NAMES[t]),
-          h('div', { class: 'iw-jz__badge' }, h('span', { class: 'iw-jz__plate' }), num, pen[t] > 0 ? h('span', { class: 'iw-jz__pen' }, `+${pen[t]}`) : null),
+        const el = h('div', { class: `iw-jz__team ${team ? 'b' : 'a'}` },
+          h('span', { class: 'iw-jd__name' }, names[team] || TEAM_NAMES[team]),
+          h('div', { class: 'iw-jz__badge' }, h('span', { class: 'iw-jz__plate' }), num, pen[team] > 0 ? h('span', { class: 'iw-jz__pen' }, `+${pen[team]}`) : null),
           h('div', { class: 'iw-jz__bar' }, fill, penBar),
-          h('small', { class: 'iw-jz__cap' }, pen[t] > 0 ? t('COUNT LEFT · +{n} PENALTY', { n: pen[t] }) : 'COUNT LEFT'));
+          h('small', { class: 'iw-jz__cap' }, pen[team] > 0 ? t('COUNT LEFT · +{n} PENALTY', { n: pen[team] }) : 'COUNT LEFT'));
         return { el, num, fill, penBar };
       };
       const A = side(0), B = side(1);
