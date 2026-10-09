@@ -7,11 +7,15 @@ const { pathToFileURL } = require('node:url');
 
 const ROOT = path.join(__dirname, '..');
 
-// GPU: run WebGL through ANGLE's Metal backend (instead of the deprecated OpenGL one),
-// prefer the discrete GPU on dual-GPU Macs, and never fall back to software rendering.
-app.commandLine.appendSwitch('use-angle', 'metal');
+// GPU: use ANGLE with Metal on macOS, Direct3D 11 on Windows; prefer discrete GPU and ignore blocklist.
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch('use-angle', 'metal');
+} else if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('use-angle', 'd3d11');
+}  
 app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
 
 const CSP = [
   "default-src 'self'",
