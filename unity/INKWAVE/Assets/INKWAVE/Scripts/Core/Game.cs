@@ -15,6 +15,7 @@ namespace INKWAVE.Core
         public string StageId = "tidewater";
         public string ModeId = "turf";
         public float MatchDuration = 180f;
+        public bool AudioOn = true;
 
         public CameraRig Rig;
         public LevelRenderer LevelView;
@@ -26,6 +27,8 @@ namespace INKWAVE.Core
 
         void Awake()
         {
+            // the sound (a procedural synth that renders the clips at runtime)
+            if (AudioOn) Audio.AudioSystem.Inst;
             GameData.Load();
             GameContext.LoadStage(StageId, ModeId);
             if (LevelView != null) LevelView.Build(GameContext.Level, GameContext.Paint);

@@ -190,6 +190,14 @@ namespace INKWAVE.Gameplay
         }
 
         // ------------------------------------------------------------------------------------------------ damage
+        /// Is the actor close enough to the camera to hear (the web build's _nearCamera)?
+        public bool NearCamera()
+        {
+            var cam = UnityEngine.Camera.main;
+            if (cam == null) return false;
+            return (cam.transform.position - Pos).sqrMagnitude < 30f * 30f;
+        }
+
         public void Damage(float amount, Actor attacker, string source = "weapon")
         {
             if (!Alive || Invuln > 0f) return;
@@ -256,6 +264,7 @@ namespace INKWAVE.Gameplay
             {
                 Form = wantSquid ? ActorForm.Squid : ActorForm.Kid;
                 if (!wantSquid) KidT = 0f;
+                if (IsLocal || NearCamera()) Audio.AudioSystem.Inst.Play(wantSquid ? "squid_in" : "squid_out", 0.45f, 1f, Pos);
                 GameContext.Emit("actor:form", new Dictionary<string, object>
                 {
                     { "actor", this }, { "form", wantSquid ? "squid" : "kid" }, { "surface", GroundTeam },
