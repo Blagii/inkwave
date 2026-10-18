@@ -136,14 +136,49 @@ developer's machine and nowhere else.
 
 ---
 
-## 6. What is not done yet
+## 6. Steam Deck
+
+The Deck is a 1280×800 handheld with a gyroscope and no mouse, so two things have to be true for the game to be
+playable on it:
+
+**1. Performance.** The APU cannot carry the high preset (GTAO + bloom + a 4K ink atlas at 1.5× density). The game
+detects the Deck through Steam and starts on the **low** preset (0.75× density, no bloom, no AO, a 2K ink atlas).
+The player can raise it in the settings; the choice is then left alone.
+
+**2. Aiming.** The game reads a standard-mapping gamepad through the Gamepad API, so the buttons work out of the
+box — but aiming needs a mouse. Steam Input can turn the **right trackpad** and the **gyroscope** into a mouse, and
+`steam/controller_neptune_gamepad_mouse_gyro.vdf` does exactly that: it is Valve's own "Gamepad with Gyro"
+template with INKWAVE's title, and the packaging step copies it next to the executable (Steam Input only looks
+there).
+
+| | |
+|---|---|
+| trackpad | mouse (absolute) — the coarse aim |
+| gyro | mouse — the fine aim, on top of it |
+| buttons | an xinput gamepad, read by the game as usual |
+| quality | low preset on the Deck (see above) |
+
+**Tuning it.** The gyro sensitivity lives in Steam Input, not in the game. On the Deck: *Steam button → Controller
+Settings → Gyroscope → As Mouse*, and the trackpad is the pointer. The shipped layout is a starting point — every
+player can change it in the Steam client, and a player who prefers pure stick aim can just turn the gyro off.
+
+**Test it on the device.** The layout is Valve's template, but the gyro feel is a matter of taste: the Deck's
+gyro-to-mouse sensitivity, the trackpad speed and the game's mouse sensitivity (Settings → Controls) all add up.
+Expect one round of tuning.
+
+---
+
+## 7. What is not done yet
 
 | item | state |
 |---|---|
 | achievements, cloud saves, rich presence, store stats | **done** (`npm run steam-test` covers the logic) |
 | Windows / Linux / macOS packaging | **done** (`npm run package:mac|win|linux`) |
 | Windows + Linux app icons | **done** (`npm run icon` — derived from the macOS `.icns`) |
-| Steam Deck: Steam Input config (trackpad → mouse, gyro aim) | **not done** — the next step |
+| Steam Deck: low preset on detection | **done** |
+| Steam Deck: Steam Input layout (trackpad + gyro as mouse) | **done** — `steam/controller_neptune_gamepad_mouse_gyro.vdf`, **needs a test on the device** |
 | Steam lobbies / invites / P2P networking | **not done** — the Cloudflare relay works today and is unchanged |
 | Overlay bridge on macOS (offscreen window) | **not done** — needs a performance check |
 | Partner-backend achievement setup | **manual** — see the table above |
+| Steam store page, capsules, trailer, demo | **not done** — the next big chunk of work |
+

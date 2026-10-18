@@ -10,7 +10,8 @@ Datum: 2026-10-18 · repo: `Blagii/inkwave` (fork od `jaydendavisnc/inkwave`, MI
 > | ✅ Faza 0 | `npm run package:mac` / `package:win` / `package:linux` — tri platforme, kros-platformske ikone (`build/make-icon.cjs`) |
 > | ✅ Faza 1 | Steamworks binding (`steamworks-ffi-node`), 13 dostignuća, Rich Presence, Steam Cloud, store stats, IPC most |
 > | ✅ | `npm run steam:verify` (šta nedostaje) · `npm run steam-test` (logika dostignuća) · `npm run prepare:steam` (pravi app id) |
-> | ⬜ Faza 2 | Steam Deck: Steam Input config (trackpad → miš, gyro aim) |
+> | ✅ Faza 2 | Steam Deck: low preset na detekciju + Steam Input layout (trackpad + gyro → miš) — **treba test na uređaju** |
+> | ✅ | CI workflow (check + win/mac/linux packaging) + kros-platformski lookup browsera za sve headless alate |
 > | ⬜ Faza 3 | Steam lobbies / pozivi (CF relay danas radi i ostaje) |
 > | ⬜ Faza 4 | Store page, demo, wishlist kampanja, $100 fee |
 

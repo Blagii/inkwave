@@ -73,6 +73,14 @@ class Game {
     this.profile.steam = { ...DEFAULT_PROFILE.steam, ...(this.profile.steam || {}) };
     // Steam (desktop build only): achievements, rich presence and cloud saves. A no-op without the Steamworks SDK.
     await steam.init(this.profile, () => this._saveProfile());
+    // Steam Deck: the APU cannot carry the high preset (GTAO + bloom + a 4K ink atlas at 1.5x density). Start on
+    // low; the player can raise it in the settings, and the choice is then left alone.
+    if (steam.info?.isDeck && !this.settings.qualityDeck && (this.settings.quality === 'high' || this.settings.quality === 'ultra')) {
+      this.settings.quality = 'low';
+      this.settings.qualityDeck = true;
+      saveJSON('inkwave.settings', this.settings);
+      console.log('[inkwave] Steam Deck detected — quality preset set to low');
+    }
     await this._steamCloud();
     const app = document.getElementById('app');
     this.uiRoot = document.getElementById('ui-root');

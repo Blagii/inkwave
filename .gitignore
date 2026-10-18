@@ -18,5 +18,5 @@ songs/manifest.json
 
 # Steam: build artifacts. The app id and the SDK redistributables are never committed.
 steam_appid.txt
-steam/
+steam/appid.txt
 steamworks_sdk/
