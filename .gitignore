@@ -20,3 +20,19 @@ songs/manifest.json
 steam_appid.txt
 steam/appid.txt
 steamworks_sdk/
+
+# Unity: the generated project folders stay local (the sources under Assets/ are committed)
+unity/INKWAVE/Library/
+unity/INKWAVE/Temp/
+unity/INKWAVE/Obj/
+unity/INKWAVE/Build/
+unity/INKWAVE/Builds/
+unity/INKWAVE/Logs/
+unity/INKWAVE/UserSettings/
+unity/INKWAVE/MemoryCaptures/
+unity/INKWAVE/Recordings/
+unity/INKWAVE/*.csproj
+unity/INKWAVE/*.sln
+unity/INKWAVE/*.user
+unity/INKWAVE/.vs/
+unity/INKWAVE/.idea/

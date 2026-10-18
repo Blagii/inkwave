@@ -137,6 +137,23 @@ npm run prepare:steam    # write the real app id into steam_appid.txt (INKWAVE_S
 See [`docs/STEAM.md`](docs/STEAM.md) for the setup, the achievement list to mirror in the Steamworks backend, and
 the known gaps (Steam Deck input, lobbies).
 
+## The Unity port
+
+The desktop release is moving to **Unity** — same mechanics, same maps, same tuning; three.js and Electron are
+being replaced (Unity renders the game and ships the desktop build).
+
+The rules that keep the two builds identical:
+
+- **The data is exported, never re-typed.** `npm run unity:export` imports the real JavaScript modules
+  (`src/world/*`, `src/config.js`, `src/i18n/*`) and writes the maps, the tuning and the strings into
+  `unity/INKWAVE/Assets/Resources/INKWAVE/`. The Unity stage *is* the web stage.
+- **The simulation is ported 1:1.** The OBB physics, the character controller, the weapons, the ink and the match
+  rules are the same numbers as in `src/` — not a rewrite and not Unity's PhysX (that would change the feel).
+- **`npm run unity:check`** scans the C# and verifies that every tuning number it reads still exists in the
+  exported data, so a rename in `src/config.js` cannot silently change a value.
+
+See [`docs/UNITY-PORT.md`](docs/UNITY-PORT.md) for the module map, the phases and the open gaps.
+
 ## How it works
 
 - **Ink is painted in texture space.** Every paintable face owns a region of one 4K atlas; splats are drawn into it on the GPU while a coarse CPU grid keeps the turf score and gameplay queries in sync. The level shader layers the ink over the surface with its own height, gloss and wetness. See [`src/world/paint.js`](src/world/paint.js) and [`src/world/inkShading.js`](src/world/inkShading.js).

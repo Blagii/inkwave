@@ -2,8 +2,10 @@
 
 Datum: 2026-10-18 · repo: `Blagii/inkwave` (fork od `jaydendavisnc/inkwave`, MIT, © 2026 Jayden Davis)
 
-> **Status: Opcija B je odabrana i Faza 0 + Faza 1 su implementirane** (2026-10-18).
-> Detalji o tome kako se koristi: [`docs/STEAM.md`](STEAM.md).
+> **Status: odluka je promenjena (2026-10-18) — prelazimo na Unity.** Faza 0/1/2 (Electron + Steamworks) su
+> implementirane i ostaju u repou kao fallback, ali se finalni desktop build pravi u Unity-ju, a three.js i
+> Electron se izbacuju iz proizvoda. Mehanika, mape i balans ostaju isti.
+> Detalji: [`docs/UNITY-PORT.md`](UNITY-PORT.md) · (stari plan: [`docs/STEAM.md`](STEAM.md)).
 >
 > | | |
 > |---|---|

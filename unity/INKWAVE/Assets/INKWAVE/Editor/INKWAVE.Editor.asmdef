@@ -1,0 +1,20 @@
+{
+  "name": "INKWAVE.Editor",
+  "rootNamespace": "INKWAVE.Editor",
+  "references": [
+    "INKWAVE",
+    "Unity.InputSystem",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
