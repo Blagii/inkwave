@@ -264,6 +264,11 @@ namespace INKWAVE.Gameplay
             // ---- horizontal movement
             if (!Climbing) Horizontal(dt, isSquid, OnEnemy);
 
+            // a dodge roll (the twins / the dualies) owns the velocity while it lasts
+            Weapons.TwinDodgeVelocity(ref Vel);
+            // a jump press while firing and moving rolls instead of jumping
+            if (JumpBuffer > 0f && !isSquid && Weapons.TryDodge(Intent.Move)) JumpBuffer = 0f;
+
             // ---- jump (buffered, with coyote time)
             Coyote = Grounded ? P.Float("coyoteTime", 0.12f) : Coyote - dt;
             bool jumped = false;
@@ -356,7 +361,10 @@ namespace INKWAVE.Gameplay
         // ------------------------------------------------------------------ horizontal movement model
         void Horizontal(float dt, bool isSquid, bool onEnemy)
         {
-            Vector3 mv = Intent.Move;
+            // while a dualies dodge roll runs, the weapon runner owns the horizontal velocity
+            if (Weapons.DualDodgeVelocity(ref Vel)) return;
+            // in the post-roll lock you are a planted turret
+            Vector3 mv = Grounded && Weapons.LockT > 0f ? Vector3.zero : Intent.Move;
             float mh = Mathf.Sqrt(mv.x * mv.x + mv.z * mv.z);
             float mag = Mathf.Min(1f, mh);
             float vx = Vel.x, vz = Vel.z;

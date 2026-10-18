@@ -14,11 +14,11 @@ using UnityEngine;
 
 namespace INKWAVE.Gameplay
 {
-    public class WeaponRunner
+    public partial class WeaponRunner
     {
         public readonly Actor A;
         public float Cooldown, Charge, FiringT, Bloom, Spread, EmptyCd;
-        public bool Charging, Rolling, AimingSub;
+        public bool Charging, Rolling, AimingSub, Streaming;
 
         const float Deg = Mathf.PI / 180f;
         const float SimDt = 1f / 120f;
@@ -33,34 +33,49 @@ namespace INKWAVE.Gameplay
         {
             Cooldown = 0f; Charge = 0f; Charging = false; Rolling = false;
             FiringT = 0f; EmptyCd = 0f; AimingSub = false; Bloom = 0f; Spread = 0f;
+            Streaming = false; ResetKinds();
         }
 
-        public bool Busy() => Charging || Rolling || AimingSub;
+        public bool Busy() => Charging || Flick >= 0f || BurstT > 0f || DodgeT > 0f || Slosh >= 0f || Streaming
+                              || Dodge || LockT > 0f || AimingSub;
 
-        public bool FiringPose() => FiringT > 0f || Charging || Rolling;
+        public bool FiringPose() => FiringT > 0f || Charging || Flick >= 0f || Rolling || BurstT > 0f || Turret
+                                    || Slosh >= 0f || Streaming || Dodge || LockT > 0f;
 
         /// How fast the actor may run while holding this weapon.
         public float MoveSpeed()
         {
             var w = A.Weapon;
+            string kind = w.Str("kind");
             float run = GameData.P.Float("runSpeed", 6f);
-            switch (w.Str("kind"))
+            switch (kind)
             {
                 case "brush":
-                    if (Rolling) return Mathf.Lerp(w.Float("moveSpeedFiring", 5f), w.Float("brushSpeed", 6f),
-                                                   MathUtil.SmoothStep(0f, 0.35f, 0f));
-                    return FiringT > 0f ? w.Float("moveSpeedFiring", 5f) : run;
+                    // brushing is faster than running; the swipes barely slow you
+                    if (Rolling) return Mathf.Lerp(w.Float("moveSpeedFiring", 5.8f), w.Float("brushSpeed", 7.4f),
+                                                   MathUtil.SmoothStep(0f, 0.35f, RollT));
+                    return FiringT > 0f ? w.Float("moveSpeedFiring", 5.8f) : run;
                 case "bucket":
-                    return FiringT > 0f ? w.Float("moveSpeedFiring", 5f) : run;
+                    if (Flick >= 0f) return w.Float("moveSpeedFiring", 4.2f) * 0.7f;
+                    return FiringT > 0f ? w.Float("moveSpeedFiring", 4.2f) : run;
                 case "spinner":
-                    if (Charging) return Mathf.Lerp(run * 0.75f, w.Float("moveSpeedCharging", 4f), Mathf.Min(1f, Charge * 2f));
+                    if (BurstT > 0f) return w.Float("moveSpeedFiring", 3f);
+                    if (Charging) return Mathf.Lerp(run * 0.75f, w.Float("moveSpeedCharging", 3.3f), Mathf.Min(1f, Charge * 2f));
                     return run;
                 case "twins":
-                    return FiringT > 0f ? w.Float("moveSpeedFiring", 5f) : run;
+                    return FiringT > 0f ? w.Float("moveSpeedFiring", 5.2f) : run;
             }
-            if (Charging && w.Str("kind") == "splatling")
-                return Mathf.Lerp(run * 0.75f, w.Float("moveSpeedCharging", 4f), Mathf.Min(1f, Charge * 2.5f));
-            if (Rolling) return Mathf.Lerp(w.Float("rollSpeed", 9f) * 0.5f, w.Float("rollSpeed", 9f), 0.5f);
+            if (LockT > 0f) return 0f;                                    // the dualies: planted after a roll
+            if (Streaming) return w.Float("moveSpeedFiring", 3.4f);      // the splatling stream
+            if (Charging && kind == "splatling")
+                return Mathf.Lerp(run * 0.75f, w.Float("moveSpeedCharging", 2.4f), Mathf.Min(1f, Charge * 2.5f));
+            if (Slosh >= 0f) return w.Float("moveSpeedFiring", 4.2f) * 0.7f;   // the slosher's heave plants you a little
+            // the roller: the drum has weight — the rolling speed builds up over ~0.45 s; the flick plants you
+            if (Rolling) return Mathf.Lerp(w.Float("rollSpeed", 4.4f) * 0.5f, w.Float("rollSpeed", 4.4f),
+                                          MathUtil.SmoothStep(0f, 0.45f, RollT));
+            if (Flick >= 0f) return Mathf.Lerp(w.Float("moveSpeedFiring", 4.4f), w.Float("moveSpeedFiring", 4.4f) * 0.45f,
+                                                Mathf.Clamp01(Flick / Mathf.Max(0.01f, w.Float("flickWindup", 0.22f))));
+            if (FlickRecover > 0f) return Mathf.Lerp(run, w.Float("moveSpeedFiring", 4.4f) * 0.6f, FlickRecover / 0.18f);
             if (Charging) return Mathf.Lerp(run * 0.7f, w.Float("moveSpeedFiring", 5f), Mathf.Min(1f, Charge * 3f));
             if (FiringT > 0f) return w.Float("moveSpeedFiring", 5f);
             return run;
@@ -77,12 +92,14 @@ namespace INKWAVE.Gameplay
                 case "splatling":
                 case "dualies":
                 {
+                    if (kind == "dualies" && LockT > 0f) return w.Float("spreadLock", 2.2f);   // the locked turret: tight
                     float baseDeg = A.Grounded ? w.Float("spreadGround", 1.6f) : w.Float("spreadAir", 4f);
                     return baseDeg * Mathf.Lerp(w.Float("spreadFirst", 0.45f), 1f, Bloom);
                 }
                 case "blaster":
                     return A.Grounded ? w.Float("spread", 1.2f) : w.Float("spreadAir", 4f);
                 case "twins":
+                    if (Turret) return w.Float("turretSpread", 1.6f);
                     return (A.Grounded ? w.Float("spreadGround", 1.6f) : w.Float("spreadAir", 4f)) * Mathf.Lerp(0.5f, 1f, Bloom);
                 case "spinner":
                     return A.Grounded ? w.Float("spreadGround", 1.6f) : w.Float("spreadAir", 4f);
@@ -95,12 +112,21 @@ namespace INKWAVE.Gameplay
             var w = A.Weapon;
             Cooldown -= dt; EmptyCd -= dt;
             FiringT = Mathf.Max(0f, FiringT - dt);
+            FlickRecover = Mathf.Max(0f, FlickRecover - dt);
             if (!fire) Bloom = Mathf.Max(0f, Bloom - dt / w.Float("bloomRecover", 0.28f));
             Spread = SpreadDeg();
 
-            string kind = w.Str("kind");
-            if (kind == "charger") Charger(dt, fire, w);
-            else Auto(dt, fire, w);
+            switch (w.Str("kind"))
+            {
+                case "roller": Roller(dt, fire, firePressed, w); break;
+                case "twins": Twins(dt, fire, w); break;
+                case "dualies": Dualies(dt, fire, w); break;
+                case "spinner": Spinner(dt, fire, w); break;
+                case "slosher": Slosher(dt, fire, w); break;
+                case "splatling": Splatling(dt, fire, w); break;
+                case "charger": Charger(dt, fire, w); break;
+                default: Auto(dt, fire, w); break;
+            }
 
             // ---- sub weapon (the Splat Bomb by default)
             if (sub && !AimingSub)
@@ -192,6 +218,20 @@ namespace INKWAVE.Gameplay
         public int Team;
         public Actor Owner;
         public bool Dead;
+        // the per-kind extras: 'shot' | 'drop' | 'slosh'
+        public string Kind = "shot";
+        public float DmgFar;             // the drop's far damage (the near damage fades into it with the distance)
+        public float BelowFalloff, BelowFalloffMax;   // the slosher's falloff when it lands below the victim
+        public Volley Volley;            // a volley: one direct hit per victim (the slosher's wave)
+        public bool Head;                // the lead glob of a volley
+        public float Delay;              // the glob leaves a little later (the wave pours out over ~0.1 s)
+    }
+
+    /// A volley of globs: only the first one to reach a victim hurts them (the rest still paint).
+    public class Volley
+    {
+        public readonly HashSet<Actor> Hit = new HashSet<Actor>();
+        public void Clear() => Hit.Clear();
     }
 
     public static class Projectiles
@@ -339,6 +379,188 @@ namespace INKWAVE.Gameplay
             });
         }
 
+        // ---- the roller's flick: a sheet of heavy drops thrown forward
+        public static void FireFlick(Actor a, JObj w)
+        {
+            Vector3 m = a.Pos + new Vector3(0f, 1.0f, 0f);
+            float fx = Mathf.Sin(a.Yaw), fz = Mathf.Cos(a.Yaw);
+            float up = Mathf.Clamp(a.AimPitch, -0.2f, 0.5f) + 0.32f;
+            int drops = Mathf.Max(1, w.Int("flickDrops", 9));
+            float spreadDeg = w.Float("flickSpreadDeg", 34f);
+            float speed = w.Float("flickSpeed", 17f);
+            for (int i = 0; i < drops; i++)
+            {
+                float t = drops > 1 ? (i / (float)(drops - 1)) * 2f - 1f : 0f;
+                float ang = a.Yaw + t * spreadDeg * Deg * 0.5f + (UnityEngine.Random.value - 0.5f) * 0.05f;
+                float sp = speed * (0.82f + 0.28f * (1f - Mathf.Abs(t)) + UnityEngine.Random.value * 0.08f);
+                var p = new Shot
+                {
+                    Owner = a, Team = a.Team, Kind = "drop", Age = 0f, Life = 1.4f, Straight = 0f,
+                    Radius = 0.85f + UnityEngine.Random.value * 0.3f,
+                    Damage = w.Float("flickDamageNear", 125f),
+                    DmgFar = w.Float("flickDamageFar", 30f),
+                    Size = 0.15f,
+                    Trail = 0f, TrailEvery = 1.8f, TrailRadius = 0.45f,
+                    Grav = 26f, Drag = 0.4f,
+                    Seed = UnityEngine.Random.value,
+                };
+                p.Pos = m + new Vector3(fx * 0.6f, 0.3f, fz * 0.6f);
+                p.Prev = p.Pos; p.Start = p.Pos;
+                float cu = Mathf.Cos(up + (UnityEngine.Random.value - 0.5f) * 0.12f);
+                p.Vel = new Vector3(Mathf.Sin(ang) * cu * sp, Mathf.Sin(up) * sp, Mathf.Cos(ang) * cu * sp);
+                List.Add(p);
+            }
+            GameContext.Emit("weapon:fire", new Dictionary<string, object>
+            {
+                { "actor", a }, { "weapon", w.Str("id") },
+                { "muzzle", m + new Vector3(fx * 0.6f, 0.3f, fz * 0.6f) },
+                { "dir", new Vector3(fx, Mathf.Sin(up), fz).normalized },
+            });
+        }
+
+        // ---- the twins / the dualies: a shot from the left or the right gun (side 0 = both, planted)
+        public static void FireTwin(Actor a, JObj w, float spreadDeg, int side)
+        {
+            Vector3 m = Muzzle(a);
+            if (side != 0)
+            {
+                // the left pistol sits mirrored across the kid's midline
+                var perp = new Vector3(a.AimDir.z, 0f, -a.AimDir.x);
+                if (perp.sqrMagnitude < 1e-4f) perp = Vector3.right;
+                perp.Normalize();
+                float cy = Mathf.Cos(a.Yaw), sy = Mathf.Sin(a.Yaw);
+                float dx = m.x - a.Pos.x, dz = m.z - a.Pos.z;
+                float lx = dx * cy - dz * sy, lz = dx * sy + dz * cy;
+                var mirrored = new Vector3(a.Pos.x - lx * cy + lz * sy, m.y, a.Pos.z + lx * sy + lz * cy);
+                if (side > 0) m = (m + perp * 0.17f + mirrored) * 0.5f;
+                else m += perp * -0.085f;
+            }
+            Vector3 dir = AimFrom(a, m, out _);
+            // side 0 = the planted rapid mode: faster, straighter, longer
+            float speed = side != 0 ? w.Float("projSpeed", 31f) : w.Float("turretProjSpeed", 36f);
+            float straight = side != 0 ? w.Float("straightTime", 0.11f) : w.Float("turretStraight", 0.16f);
+            float range = side != 0 ? w.Float("range", 11f) : w.Float("turretRange", 13.5f);
+            dir = Ballistic(m, dir, a.AimPoint, speed, straight, 28f, 0.8f, range);
+            Spread(dir, spreadDeg);
+            var p = new Shot
+            {
+                Owner = a, Team = a.Team, Kind = "shot", Age = 0f, Life = 1.2f, Straight = straight,
+                Radius = w.Float("impactRadius", 0.78f),
+                Damage = w.Float("damage", 30f),
+                Size = 0.13f,
+                Trail = -(2.4f - w.Float("trailEvery", 1.1f)),
+                TrailEvery = w.Float("trailEvery", 1.1f),
+                TrailRadius = w.Float("trailRadius", 0.4f),
+                Grav = 28f, Drag = 0.8f,
+                Seed = UnityEngine.Random.value,
+            };
+            p.Pos = m; p.Prev = m; p.Start = m;
+            p.Vel = dir * speed;
+            List.Add(p);
+            GameContext.Emit("weapon:fire", new Dictionary<string, object>
+            {
+                { "actor", a }, { "weapon", w.Str("id") }, { "muzzle", m }, { "dir", dir },
+            });
+        }
+
+        // ---- the spinner: the speed / the straight time / the reach follow the charge
+        public static void FireStream(Actor a, JObj w, float power, float spreadDeg)
+        {
+            Vector3 m = Muzzle(a);
+            Vector3 dir = AimFrom(a, m, out _);
+            float speed = Mathf.Lerp(w.Float("speedMin", 25f), w.Float("speedMax", 40f), power);
+            float straight = Mathf.Lerp(w.Float("straightMin", 0.09f), w.Float("straightMax", 0.24f), power);
+            float range = Mathf.Lerp(w.Float("rangeMin", 10f), w.Float("rangeMax", 21f), power);
+            dir = Ballistic(m, dir, a.AimPoint, speed, straight, 28f, 0.8f, range);
+            Spread(dir, spreadDeg);
+            var p = new Shot
+            {
+                Owner = a, Team = a.Team, Kind = "shot", Age = 0f, Life = 1.3f, Straight = straight,
+                Radius = w.Float("impactRadius", 0.72f),
+                Damage = w.Float("damage", 26f),
+                Size = 0.12f,
+                Trail = -(2.2f - w.Float("trailEvery", 1.25f)),
+                TrailEvery = w.Float("trailEvery", 1.25f),
+                TrailRadius = w.Float("trailRadius", 0.38f),
+                Grav = 28f, Drag = 0.8f,
+                Seed = UnityEngine.Random.value,
+            };
+            p.Pos = m; p.Prev = m; p.Start = m;
+            p.Vel = dir * speed;
+            List.Add(p);
+            GameContext.Emit("weapon:fire", new Dictionary<string, object>
+            {
+                { "actor", a }, { "weapon", w.Str("id") }, { "muzzle", m }, { "dir", dir },
+            });
+        }
+
+        // ---- the slosher: a heavy wave lobbed over the cover, poured out along one arc
+        public static void FireSlosher(Actor a, JObj w)
+        {
+            Vector3 m = Muzzle(a);
+            Vector3 to = a.AimPoint - m;
+            float hd = new Vector2(to.x, to.z).magnitude;
+            float yaw = hd > 0.3f ? Mathf.Atan2(to.x, to.z) : a.AimYaw;
+            hd = MathUtil.Clamp(hd, 1.2f, w.Float("range", 9.5f));
+            float dy = MathUtil.Clamp(to.y, -4f, 5f);
+            float g = w.Float("grav", 22f);
+            const float T0 = 0.32f;
+
+            // the same ~18° heave at every range: the speed does the work
+            float v = w.Float("projSpeed", 15f), pitch;
+            float den = 2f * Mathf.Cos(T0) * Mathf.Cos(T0) * (hd * Mathf.Tan(T0) - dy);
+            float vT = den > 1e-3f ? Mathf.Sqrt((g * hd * hd) / den) : float.PositiveInfinity;
+            if (vT <= v) { v = Mathf.Max(5.5f, vT); pitch = T0; }
+            else
+            {
+                float disc = v * v * v * v - g * (g * hd * hd + 2f * dy * v * v);
+                pitch = disc >= 0f ? Mathf.Atan((v * v - Mathf.Sqrt(disc)) / (g * hd)) : Mathf.PI / 4f;
+                pitch = MathUtil.Clamp(pitch, T0, 1.2f);
+            }
+
+            int n = Mathf.Max(1, w.Int("drops", 8));
+            var vol = NextVolley();
+            for (int i = 0; i < n; i++)
+            {
+                float k = n > 1 ? i / (float)(n - 1) : 0f;
+                float sp = v * (1f - 0.18f * k), pt = pitch - 0.04f * k;
+                float yw = yaw + (i == 0 ? 0f : (i % 2 != 0 ? 1f : -1f) * 0.028f * Mathf.Min(1f, i / 3f));
+                var p = new Shot
+                {
+                    Owner = a, Team = a.Team, Kind = "slosh", Age = 0f, Life = 2.4f, Straight = 0f,
+                    Delay = i * 0.012f,
+                    Radius = w.Float("impactRadius", 1.05f) * (i == 0 ? 1f : 0.78f - 0.22f * k),
+                    Damage = i == 0 ? w.Float("damageHead", 70f) : w.Float("damageTail", 34f),
+                    Head = i == 0,
+                    Size = i == 0 ? 0.2f : 0.14f,
+                    Trail = -0.8f, TrailEvery = i < 3 ? w.Float("trailEvery", 1.4f) : 0f,
+                    TrailRadius = w.Float("trailRadius", 0.5f),
+                    Grav = g, Drag = 0f,
+                    Seed = UnityEngine.Random.value,
+                    Volley = vol,
+                };
+                p.Pos = m; p.Prev = m; p.Start = m;
+                float cp = Mathf.Cos(pt);
+                // + g·dt/2 cancels the integrator's half-step drop, so the head glob lands on the crosshair
+                p.Vel = new Vector3(Mathf.Sin(yw) * cp * sp, Mathf.Sin(pt) * sp + g * SimDt * 0.5f, Mathf.Cos(yw) * cp * sp);
+                List.Add(p);
+            }
+            GameContext.Emit("weapon:fire", new Dictionary<string, object>
+            {
+                { "actor", a }, { "weapon", w.Str("id") }, { "muzzle", m },
+                { "dir", new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch)) },
+            });
+        }
+
+        static readonly Volley[] _vols = { new Volley(), new Volley(), new Volley(), new Volley() };
+        static int _volI;
+        static Volley NextVolley()
+        {
+            var v = _vols[_volI = (_volI + 1) % _vols.Length];
+            v.Clear();
+            return v;
+        }
+
         public static void ThrowBomb(Actor a)
         {
             var sub = a.Sub ?? GameData.Sub("bomb");
@@ -387,6 +609,7 @@ namespace INKWAVE.Gameplay
 
         static bool Step(Shot p, float dt)
         {
+            if (p.Delay > 0f) { p.Delay -= dt; return false; }
             p.Age += dt;
             p.Prev = p.Pos;
             if (p.Age > p.Straight) p.Vel.y -= p.Grav * dt;
@@ -409,7 +632,17 @@ namespace INKWAVE.Gameplay
                 if (_res.Dist < hr * 0.95f + p.Size)
                 {
                     Vector3 at = Vector3.Lerp(p.Prev, p.Pos, _res.T);
-                    ApplyHit(p.Owner, e, p.Damage);
+                    // a volley lands one direct hit per victim (the rest of the wave still paints)
+                    if (p.Volley != null)
+                    {
+                        if (p.Volley.Hit.Contains(e)) continue;
+                        p.Volley.Hit.Add(e);
+                    }
+                    float dmg = p.Damage;
+                    if (p.Kind == "drop") dmg = Mathf.Lerp(p.Damage, p.DmgFar, Mathf.Clamp01((p.Start - at).magnitude / 7f));
+                    if (p.BelowFalloff > 0f)
+                        dmg *= 1f - Mathf.Clamp((p.Start.y - (e.Pos.y + 0.8f) - 0.5f) * p.BelowFalloff, 0f, p.BelowFalloffMax);
+                    ApplyHit(p.Owner, e, dmg);
                     GameContext.Emit("weapon:impact", new Dictionary<string, object>
                     {
                         { "pos", at }, { "normal", -p.Vel.normalized }, { "team", p.Team }, { "kind", "shot" },
@@ -458,12 +691,47 @@ namespace INKWAVE.Gameplay
             Vector3 at = hit.Point + hit.Normal * 0.14f;
             Vector3 dir = p.Vel.normalized;
             float rad = p.Radius * (0.85f + UnityEngine.Random.value * 0.3f);
-            float area = GameContext.Paint.Splat(at, rad, p.Team, p.Seed, PaintSystem.Kind.Shot, dir, 0.7f);
+            bool sloshr = p.Kind == "slosh" && p.Volley != null;
+            float area;
+            if (sloshr)
+            {
+                // the wave lands as a thick stripe along its travel
+                dir.y = 0f;
+                if (dir.sqrMagnitude < 1e-4f) dir = Vector3.forward;
+                dir.Normalize();
+                area = GameContext.Paint.Splat(at, rad * 1.12f, p.Team, p.Seed, PaintSystem.Kind.Shot, dir, 1.25f);
+            }
+            else area = GameContext.Paint.Splat(at, rad, p.Team, p.Seed, PaintSystem.Kind.Shot, dir, 0.7f);
             Credit(p, area);
+            if (sloshr && p.Head) SloshSplash(p, hit.Point);
             GameContext.Emit("weapon:impact", new Dictionary<string, object>
             {
-                { "pos", hit.Point }, { "normal", hit.Normal }, { "team", p.Team }, { "kind", "shot" }, { "radius", rad },
+                { "pos", hit.Point }, { "normal", hit.Normal }, { "team", p.Team },
+                { "kind", p.Kind == "drop" || sloshr ? "drop" : "shot" }, { "radius", rad },
             });
+        }
+
+        /// The slosher's wave splashes the enemies around the landing point.
+        static void SloshSplash(Shot p, Vector3 at)
+        {
+            var w = p.Owner != null ? p.Owner.Weapon : null;
+            if (w == null) return;
+            float splashRadius = w.Float("splashRadius", 1.1f);
+            float splashDamage = w.Float("splashDamage", 26f);
+            var actors = GameContext.Match != null ? GameContext.Match.Actors : null;
+            if (actors == null) return;
+            var from = new Vector3(at.x, at.y + 0.25f, at.z);
+            for (int i = 0; i < actors.Count; i++)
+            {
+                var e = actors[i];
+                if (e == null || e.Team == p.Team || !e.Alive) continue;
+                if (p.Volley != null && p.Volley.Hit.Contains(e)) continue;
+                var to = e.Pos + new Vector3(0f, 0.6f, 0f);
+                if ((to - at).magnitude > splashRadius + 0.3f) continue;
+                if (!GameContext.Physics.Los(from, to)) continue;
+                if (p.Volley != null) p.Volley.Hit.Add(e);
+                ApplyHit(p.Owner, e, splashDamage);
+            }
         }
 
         static void Credit(Shot p, float area)

@@ -41,7 +41,7 @@ C# čita postoji u izvezenim podacima**. Ako se neko ime promeni u `src/config.j
 | `src/game/physics.js` | `Scripts/World/Physics.cs` | ✅ |
 | `src/world/paint.js` (CPU grid + atlas) | `Scripts/Gameplay/PaintSystem.cs` + `Shaders/InkSplat.shader` | ✅ (grid 1:1) |
 | `src/game/actor.js` | `Scripts/Gameplay/Actor.cs` | ✅ (pokret, forme, ink, hp) |
-| `src/game/weapons.js` | `Scripts/Gameplay/WeaponRunner.cs` | ◐ shooter porodica gotova; specijalne vrste padaju na generički put |
+| `src/game/weapons.js` | `Scripts/Gameplay/WeaponRunner.cs` + `WeaponKinds.cs` | ◐ shooter porodica + roller/twins/dualies/spinner/slosher/splatling; bucket/brush/brolly/bow/blade/mitts idu na generički put |
 | `src/game/match.js` | `Scripts/Gameplay/Match.cs` | ✅ (turf tok; zone/boss nisu) |
 | `src/game/bots.js` | `Scripts/Gameplay/Match.cs` → `BotBrain` | ◐ uprošćen bot (ciljanje + pucanje) |
 | `src/game/cameraRig.js` | `Scripts/Gameplay/CameraRig.cs` | ✅ (follow) |
@@ -101,10 +101,25 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 - `Actor`: S-curve ubrzanje, plant-and-reverse, heading slew, jump buffer + coyote time, apex hang,
   hard-landing, forma (kid/squid/swim), enemy-ink šteta i regen, ink refill, posebni meter.
 - `PaintSystem`: CPU mreža 0.25 m po licu, ista `blobWobble` ivica kao GPU, brojanje turfa po timu.
-- `WeaponRunner` + `Projectiles`: shooter porodica (balistička korekcija, konus razlaza, "straight pa gravitacija",
+- `WeaponRunner` + `Projectiles` + `WeaponKinds`: shooter porodica (balistička korekcija, konus razlaza, "straight pa gravitacija",
   trail kapljice, impact splat, damage).
 - `Match`: uvod → igra → kraj → ocena (turf odlučuje), spawnovi, međusobno guranje.
 - `CameraRig`: pivot na oprugama, soft probe za dužinu booma, aim zrak iz renderovane kamere.
+
+### ✅ Faza U1.5 — Oružja po vrstama
+
+Šest vrsta oružja ima svoje ponašanje u webu (ne samo brojeve), pa su prenesena 1:1 u `WeaponKinds.cs`:
+
+| Oružje | Šta radi u portu |
+|---|---|
+| **roller** | flick (zamah → 9 teških kapljica) + **valjak** (traka boje kroz teren, šteta ispred bubnja, `kind: 'roll'` slik) |
+| **twins** | naizmenični pištolji, **dodge-roll** (pritisak skoka = roll), *turret* mod posle rolla (brže, dalje, uže) |
+| **dualies** | naizmenična vatra, **dodge-roll** + *lock* (zabijena turret, `spreadLock`) |
+| **spinner** | punjenje → **burst** (brzina/domet zavise od napunjenosti) |
+| **slosher** | zamah → **talas** (lob preko prepreka, 8 kapi, vodeći kapi nosi štetu, mrlja se sliježi u traku) |
+| **splatling** | zupčanje → **struja** metaka (dužina zavisi od napunjenosti) |
+
+Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čitanja), pa je osećaj isti kao u webu.
 
 ### ◐ Faza U2 — Rendering i sadržaj (u toku)
 - ✅ Level mesh iz blokova (svaka farba ima UV u ink atlasu).
@@ -129,7 +144,7 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 |---|---|---|---|
 | 1 | Prop teksture (natpisi, ograda) | Propovi su bez štampa i ograda | Canvas atlas u Unity-ju (UI Toolkit / proceduran) |
 | 2 | Likovi (character art) | Vizuelno daleko od web builda | Port character-geo/mats/outfit ili novi modeli |
-| 3 | Oružja: roller/twins/brush/slosher/splatling/brolly/bow/blade/mitts | Ponašanje ≠ web build | Port `_roller`/`_twins`/`_brush`/… iz `weapons.js` po vrsti |
+| 3 | Oružja: bucket/brush/brolly/bow/blade/mitts | Ponašanje ≠ web build | Port `_bucket`/`_brush`/`_brolly`/`_bow`/`_blade`/`_mitts` iz `weapons.js` po vrsti |
 | 4 | Bot AI (2088 linija) | Botovi su slabiji | Port `BotBrain` (navigacija, farbanje ink-a, sub tajming) |
 | 5 | Zone Control + Boss mod | Nisu u portu | `src/game/zones.js`, `src/boss/*` |
 | 6 | Super jump / wall climb / specijali | Nisu u portu | `actor.js` (`_updateClimb`, `_updateSuperJump`), `specials.js` |
