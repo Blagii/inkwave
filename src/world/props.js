@@ -1084,7 +1084,7 @@ function bannerGeo(w, h) {
 
 // ------------------------------------------------------------------------------------------------ merge
 const _v = new THREE.Vector3(), _nm = new THREE.Matrix3();
-function mergeParts(parts) {
+export function mergeParts(parts) {
   let nv = 0, ni = 0;
   for (const p of parts) { const c = p.g.attributes.position.count; nv += c; ni += p.g.index ? p.g.index.count : c; }
   const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), colr = new Float32Array(nv * 3), uv = new Float32Array(nv * 2);
@@ -3324,3 +3324,44 @@ export class PropKit {
 }
 
 export const PROP_TYPES = Object.entries(D).map(([type, d]) => ({ type, description: d.desc, params: d.params, variants: d.variants, mount: d.mount }));
+
+
+// ------------------------------------------------------------------------------------------------- baking
+// Flatten the kit into plain (material, geometry) pairs. The web build merges everything into a handful of
+// draws; the Unity build wants the same geometry as files, so tools/unity-export/bake-props.mjs calls this and
+// writes the result out as glTF. The instanced bits (spinners, blinking lights, flags, banners) are frozen into
+// static geometry — Unity animates them separately if it ever needs to.
+export function bakePropGeometry(kit) {
+  const out = [];
+  for (const [bucket, parts] of kit._buckets) {
+    const key = bucket.split('~')[0];
+    if (key === 'blob' || key === 'fence') continue;    // the AO blobs and the chain-link planes need their textures
+    const keep = parts.filter((p) => !p.uv);            // the sign decals live in the canvas atlas
+    if (!keep.length) continue;
+    out.push({ material: key, geometry: mergeParts(keep) });
+  }
+  // the spinners (fans, turbines) — frozen
+  const spin = { paint: [], metal: [] };
+  for (const r of kit._spin) {
+    const g = kit._tplGeo(r.kind);
+    const part = { g, m: r.base, c: new THREE.Color(0xffffff), uv: null, uvs: null, ao: null };
+    (r.kind === 'fan' ? spin.paint : spin.metal).push(part);
+  }
+  if (spin.paint.length) out.push({ material: 'paint', geometry: mergeParts(spin.paint) });
+  if (spin.metal.length) out.push({ material: 'metal', geometry: mergeParts(spin.metal) });
+  // the blinking lights — frozen at their bright colour
+  if (kit._blink.length) {
+    const parts = kit._blink.map((r) => ({ g: G.sph(1, 8, 6, false), m: r.m, c: r.color.clone().multiplyScalar(r.hi), uv: null, uvs: null, ao: null }));
+    out.push({ material: 'blink', geometry: mergeParts(parts) });
+  }
+  // the flags and the banners — frozen with their own colour
+  if (kit._flags.length) {
+    const parts = kit._flags.map((r) => ({ g: flagGeo(), m: r.m, c: r.color, uv: null, uvs: null, ao: null }));
+    out.push({ material: 'cloth', geometry: mergeParts(parts) });
+  }
+  if (kit._banners.length) {
+    const parts = kit._banners.map((r) => ({ g: bannerGeo(0.8, 1.9), m: r.m, c: r.color, uv: null, uvs: null, ao: null }));
+    out.push({ material: 'cloth', geometry: mergeParts(parts) });
+  }
+  return out;
+}

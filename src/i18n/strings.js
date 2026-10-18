@@ -19,7 +19,7 @@ export const LANGUAGES = [
   { id: 'zh', label: '中文' },
 ];
 
-const EN = {
+export const EN_PHRASES = {
   // ---- interpolated msgids (English template → English text; zh translations in zh.js)
   '{n} more characters to go': '{n} more characters to go',
   'Connecting to room {code}…': 'Connecting to room {code}…',
@@ -238,7 +238,7 @@ const ZH = {
   'settings.reset.previewCap': '按两次即可恢复<b>所有页签上的全部设置</b>',
 };
 
-const DICTS = { en: EN, zh: { ...ZH, ...ZH_PHRASES } };
+const DICTS = { en: EN_PHRASES, zh: { ...ZH, ...ZH_PHRASES } };
 
 const listeners = new Set();
 let lang = 'en';
@@ -254,7 +254,7 @@ export const isZh = () => lang === 'zh';
 /** Translate `key` in the current language (English fallback, then the key itself). `{n}` placeholders interpolate. */
 export function t(key, params = null) {
   let s = DICTS[lang][key];
-  if (s === undefined) s = EN[key] !== undefined ? EN[key] : key;
+  if (s === undefined) s = EN_PHRASES[key] !== undefined ? EN_PHRASES[key] : key;
   if (params) for (const k in params) s = s.replaceAll(`{${k}}`, String(params[k]));
   return s;
 }

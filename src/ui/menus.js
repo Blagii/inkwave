@@ -1472,7 +1472,7 @@ export class Menus {
     if (this.api.setProfileStyle) { safeCall(() => this.api.setProfileStyle(clean)); return; }
     // until the engine exposes api.setProfileStyle: the same localStorage record main.js saves the profile to
     const g = G.game;
-    if (g && g.profile) { g.profile.style = clean; try { localStorage.setItem('inkwave.profile', JSON.stringify(g.profile)); } catch (e) { /* private mode */ } }
+    if (g && g.profile) { g.profile.style = clean; try { g.profile.savedAt = Date.now(); localStorage.setItem('inkwave.profile', JSON.stringify(g.profile)); } catch (e) { /* private mode */ } }
   }
 
   // ================================================================ SCREEN: locker (choose + customise your squidkid)

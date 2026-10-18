@@ -1,36 +1,27 @@
 {
   "name": "inkwave",
   "productName": "INKWAVE",
-  "version": "1.1.0",
-  "description": "An original Splatoon-style 4v4 turf-war shooter for the browser, built on three.js.",
-  "main": "electron/main.cjs",
+  "version": "2.0.0",
+  "description": "INKWAVE — an original 4v4 ink shooter. The game is the Unity build in unity/INKWAVE.",
   "scripts": {
-    "start": "electron .",
-    "serve": "python3 tools/serve.py 8490",
-    "check": "for f in $(find src electron build tools server/src -name '*.js' -o -name '*.mjs' -o -name '*.cjs'); do node --check \"$f\" || exit 1; done && echo 'syntax ok'",
-    "package": "electron-packager . INKWAVE --platform=darwin --arch=arm64,x64 --icon=build/icon.icns --app-bundle-id=local.inkwave.game --app-category-type=public.app-category.action-games --extend-info=build/extend-info.plist --darwin-dark-mode-support --asar.unpackDir=songs --out=dist --overwrite --ignore='^/(dist|build|node_modules|docs|tools|server|\\.botlab)(/|$)' --ignore='\\.DS_Store$'",
-    "music": "node build/music-manifest.mjs",
-    "prestart": "npm run -s music",
-    "prepackage": "npm run -s check && npm run -s music",
-    "bake": "electron build/bake-ao.cjs",
+    "check": "for f in $(find src build tools server/src -name '*.js' -o -name '*.mjs' -o -name '*.cjs'); do node --check \"$f\" || exit 1; done && echo 'syntax ok' && npm run -s unity:check",
     "check-maps": "node build/check-maps.mjs",
-    "icon": "sh build/make-icon.sh",
-    "botlab": "tools/botlab/run.sh tools/botlab/match.cjs",
-    "smoke": "./tools/smoke.sh",
-    "net-test": "node tools/net-test.mjs",
-    "build": "python3 tools/build-dist.py",
-    "release": "./tools/release-pages.sh",
+    "icon": "node build/make-icon.cjs",
+    "icon:mac": "sh build/make-icon.sh",
+    "relay": "cd server && wrangler dev --ip 0.0.0.0 --port 8787",
     "deploy-relay": "cd server && wrangler deploy",
-    "relay": "cd server && wrangler dev --ip 0.0.0.0 --port 8787"
+    "unity:export": "node tools/unity-export/export-data.mjs",
+    "unity:check": "node tools/unity-export/check-data.mjs && (command -v python3 >/dev/null && npm run -s unity:check-csharp || echo 'the C# static checks are skipped (no python3)')",
+    "unity:check-csharp": "python3 tools/unity-export/check-csharp.py && python3 tools/unity-export/check-members.py && python3 tools/unity-export/check-namespaces.py && python3 tools/unity-export/check-calls.py",
+    "unity:bake": "node tools/unity-export/bake-props.mjs"
   },
   "keywords": [
     "game",
-    "three.js",
-    "webgl",
+    "unity",
     "shooter",
     "splatoon",
     "turf-war",
-    "browser-game"
+    "ink"
   ],
   "author": "Jayden Davis",
   "license": "MIT",
@@ -43,13 +34,9 @@
   "bugs": {
     "url": "https://github.com/jaydendavisnc/inkwave/issues"
   },
-  "dependencies": {
-    "three": "^0.186.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@electron/packager": "^20.3.0",
-    "electron": "^44.4.5",
-    "puppeteer-core": "^25.12.0",
+    "three": "^0.186.0",
     "wrangler": "^4.141.0"
   }
 }

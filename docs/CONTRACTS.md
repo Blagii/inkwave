@@ -6,7 +6,8 @@ Everything is procedural: no external models, textures or audio files. Fonts are
 - Serve: `python3 -m http.server 8490 --directory ~/inkwave` → http://localhost:8490/
 - three is available through the import map in every page: `import * as THREE from 'three'` and
   `import { X } from 'three/addons/...'` (maps to `vendor/three/jsm/`).
-- Screenshot/audit: `node tools/shot.mjs <url> <out.png> [--w 1600 --h 900 --wait 2500 --eval "js"]`
+- Screenshot/audit: the web capture harness is gone with the web build; the Unity build needs its own
+  (a headless player + a screenshot pass) — not written yet.
   (drives the real system Chrome with GPU WebGL; prints console errors). Save shots under `/private/tmp/...` or `shots/`.
 - Shared tuning lives in `src/config.js` (import from there; do not duplicate numbers).
 - Units: metres, seconds, radians. Y is up. Character root origin = feet on the ground, facing **+Z** at rotation.y = 0.

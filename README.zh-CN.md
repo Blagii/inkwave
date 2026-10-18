@@ -9,25 +9,25 @@
 </p>
 
 <p align="center">
-  一款原创的 Splatoon 风格 4v4 占地对战射击游戏，直接在浏览器里运行。<br>
+  一款原创的 Splatoon 风格 4v4 占地对战射击游戏（Unity 版本）。<br>
   涂满地面，在自己的墨水里潜行，把对手的涂地面积比下去。
 </p>
 
 <p align="center">
-  <a href="https://inkwave-aah.pages.dev"><b>▶ 立即游玩</b></a> ·
-  <a href="#操作">操作</a> ·
-  <a href="#联机对战">联机</a> ·
   <a href="#本地运行">本地运行</a> ·
+  <a href="#操作">操作</a> ·
   <a href="#实现原理">实现原理</a> ·
   <a href="CONTRIBUTING.md">参与贡献</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/jaydendavisnc/inkwave/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jaydendavisnc/inkwave/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-000000?logo=three.js&logoColor=white">
-  <img alt="无需构建" src="https://img.shields.io/badge/build-none%20needed-2ea44f">
+  <a href="https://github.com/Blagii/inkwave/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Blagii/inkwave/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Unity 6" src="https://img.shields.io/badge/Unity-6000.0-000000?logo=unity&logoColor=white">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
+
+> **游戏已迁移到 Unity**（`unity/INKWAVE`）：玩法、地图、数值完全不变，three.js 与 Electron 已从产品中移除。
+> 详情见 [`docs/UNITY-PORT.md`](docs/UNITY-PORT.md)。
 
 ---
 
@@ -85,46 +85,36 @@ npm run relay    # ws://<本机>:8787
 
 ## 本地运行
 
-本项目没有构建步骤。任何静态文件服务器都可以；自带的服务脚本还能同时向局域网提供服务，并发送 no-cache 头，确保模块更新不会出现缓存陈旧的问题。
+游戏是 **Unity** 工程：用 Unity 6000.0.40f1（URP 17）打开 `unity/INKWAVE` 直接 Play 即可。
+地图、数值与文本已经导出在工程里，无需任何准备。
 
 ```bash
 git clone https://github.com/jaydendavisnc/inkwave.git
 cd inkwave
-npm install      # Electron + 无头测试工具
-npm start        # 桌面应用（Electron）
-npm run serve    # 或网页版：http://localhost:8490
-npm run package  # 构建 macOS 应用到 dist/（arm64 + x64）
+npm install           # 仅数据工具需要（three.js，用来烘焙道具几何体）
+npm run unity:export  # 从 src/ 重新导出地图与数值
+npm run unity:check   # 校验 C# 读取的每个数值都还在
+npm run unity:bake    # 烘焙道具几何体（.glb，构建产物）
 ```
 
-可选：把你自己的音乐放进 `songs/`（见 [`songs/README.md`](songs/README.md)）；否则会播放程序化生成的配乐。
+在 Unity 里：**Tools → INKWAVE → Build Play Scene**，然后 Play；
+**Tools → INKWAVE → Build Linux / Windows / macOS Player** 可以出独立包。
 
-常用的 URL 参数：`?map=halyard&time=dusk` 指定地图，`&autostart=180` 跳过菜单直接开始一场 180 秒的对局，`&autopilot` 让机器人替你操作。
+桌面版打包与 Steam
 
-```bash
-npm install      # 只需一次，用于无头工具
-npm run check    # 对每个模块做语法检查
-npm run smoke    # 在无头 Chrome 中启动并自动运行 8 秒，出现控制台错误即失败
-npm run build    # 组装 dist/（游戏本体 + 仅包含它引用的 three.js 附加模块）
-npm run check-maps   # 检查每张地图布局（及其区域控制变体）
-```
+桌面版本直接由 Unity 打包（CI 每次 push 都会出 Linux 包）。Steamworks 改用 `UnitySteamworks`：
+13 个成就、Steam 云存档（`inkwave-save.json`）、富状态与商店统计——全部可选，
+没有 Steam 时游戏行为完全不变。
 
-机器人对局可以在无头静音模式下用于调参：`MAP=halyard MODE=turf SECS=180 npm run botlab`（见 [`tools/botlab/README.md`](tools/botlab/README.md)）。
-在中继运行时，`npm run net-test` 会让多个无头客户端进行一场真实对局，并报告每个客户端绘制出了什么
-（见 [`docs/NET.md`](docs/NET.md#how-the-netcode-works-srcnetnetmatchjs)）。
+见 [`docs/STEAM-PATH.md`](docs/STEAM-PATH.md)（发布计划）与 [`docs/UNITY-PORT.md`](docs/UNITY-PORT.md)（还差什么）。
 
 ## 实现原理
 
-- **墨水绘制在纹理空间。** 每个可涂面都占据一张 4K 图集上的一块区域；墨点由 GPU 绘制到图集中，同时一张粗粒度的 CPU 网格负责同步涂地比分和游戏逻辑查询。关卡着色器把墨水叠加到表面上，并带有自身的高度、光泽和湿润度。见 [`src/world/paint.js`](src/world/paint.js) 与 [`src/world/inkShading.js`](src/world/inkShading.js)。
-- **地图即数据。** 一张布局就是竞技场一半区域的盒体与斜面列表；另一半是它的 180° 旋转，因此两队场地永远完全一致。环境光遮蔽离线烘焙（`tools/bake-ao.mjs`）。见 [`src/world/maps.js`](src/world/maps.js)。
-- **角色完全程序化。** 几何体、材质、60 骨骼绑定以及全部动画（移动、乌贼形态、武器姿态、次级运动）都是代码，由基于弹簧的姿态系统驱动。见 [`docs/RIG.md`](docs/RIG.md)。
-- **各系统通过事件通信。** 武器、角色和对局发出带类型的事件；特效、HUD 和音频负责订阅。这套契约记录在 [`docs/EVENTS.md`](docs/EVENTS.md) 与 [`docs/CONTRACTS.md`](docs/CONTRACTS.md)。
-- **确定性的工具链。** 游戏暴露了冻结/单帧步进的调试接口，因此连拍图、手感测量和机器人模拟都能逐帧复现（`tools/film.py`、`tools/measure-handling.mjs`）。
-
-渲染使用 three.js r186（已内置为纯 ES 模块并通过 import map 加载），配合 GTAO、泛光和自定义调色后处理。
-
-## 浏览器支持
-
-主要面向 Chrome 和 Edge；Firefox 可运行。Safari 能跑但较慢。高画质预设建议使用独立显卡或较新的集成显卡；设置菜单提供中、低两档。
+- **墨水绘制在纹理空间。** 每个可涂面都占据一张图集上的一块区域；墨点由 GPU 绘制到图集中，同时一张粗粒度的 CPU 网格负责同步涂地比分和游戏逻辑查询。关卡着色器把墨水叠加到表面上，并带有自身的高度、光泽和湿润度。见 `Scripts/Gameplay/PaintSystem.cs` 与 `Shaders/InkSurface.shader`。
+- **地图即数据。** 一张布局就是竞技场一半区域的盒体与斜面列表；另一半是它的 180° 旋转，因此两队场地永远完全一致。见 `Scripts/World/Level.cs`。
+- **角色完全程序化。** 乌贼小子的几何体由代码拼出（身体、头、会跟随准星的眼睛、手脚、墨罐、触手），潜行时切换成乌贼形态。见 `Scripts/Render/ActorRenderer.cs`。
+- **音效也是程序化。** 一个小合成器在运行时渲染音效（扫频音、带滤波的噪声、气泡声），没有任何音频文件。见 `Scripts/Audio/AudioSystem.cs`。
+- **各系统通过事件通信。** 武器、角色和对局发出带类型的事件；HUD、音频与特效负责订阅。
 
 ## 界面语言
 

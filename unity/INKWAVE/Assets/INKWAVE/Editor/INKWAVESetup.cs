@@ -1,0 +1,191 @@
+// Editor helpers: build the playable scene and the materials, so the project can be set up in one click.
+//
+//   Tools → INKWAVE → Build Play Scene      (a new scene with the game, the camera rig and the light)
+//   Tools → INKWAVE → Build Materials       (the ink surface + the splat material)
+using System.IO;
+using INKWAVE.Core;
+using INKWAVE.Gameplay;
+using INKWAVE.Inputs;
+using INKWAVE.Render;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+
+namespace INKWAVE.EDITOR
+{
+    public static class INKWAVESetup
+    {
+        const string ScenePath = "Assets/INKWAVE/Scenes/Play.unity";
+        const string MatDir = "Assets/INKWAVE/Materials";
+        const string PropDir = "Assets/INKWAVE/Props";
+        const string PropPrefabDir = "Assets/Resources/INKWAVE/Props";
+
+        [MenuItem("Tools/INKWAVE/Build Materials")]
+        public static void BuildMaterials()
+        {
+            Directory.CreateDirectory(MatDir);
+            MakeMaterial("INKWAVE/InkSurface", "Assets/INKWAVE/Materials/InkSurface.mat");
+            MakeMaterial("INKWAVE/InkSplat", "Assets/INKWAVE/Materials/InkSplat.mat");
+            // the team materials live in Resources so the runtime finds them (and the shader stays in the build)
+            Directory.CreateDirectory(TeamMatDir);
+            MakeTeamMaterial("Team0", new Color(1f, 0.541f, 0.078f));
+            MakeTeamMaterial("Team1", new Color(0.184f, 0.357f, 1f));
+            AssetDatabase.SaveAssets();
+            Debug.Log("[inkwave] the materials are ready");
+        }
+
+        const string TeamMatDir = "Assets/Resources/INKWAVE/Materials";
+
+        static void MakeTeamMaterial(string name, Color color)
+        {
+            var shader = Shader.Find("INKWAVE/Character");
+            if (shader == null) { Debug.LogError("[inkwave] the character shader is missing"); return; }
+            var path = $"{TeamMatDir}/{name}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            else mat.shader = shader;
+            mat.SetColor("_BaseColor", color);
+            mat.SetColor("_RimColor", color);
+            EditorUtility.SetDirty(mat);
+        }
+
+        static void MakeMaterial(string shaderName, string path)
+        {
+            var shader = Shader.Find(shaderName);
+            if (shader == null) { Debug.LogError($"[inkwave] the shader '{shaderName}' is missing"); return; }
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            else mat.shader = shader;
+            EditorUtility.SetDirty(mat);
+        }
+
+        [MenuItem("Tools/INKWAVE/Build Prop Prefabs")]
+        public static void BuildPropPrefabs()
+        {
+            // The baked glTF files (npm run unity:bake) become prefabs under Resources so the game can load them.
+            Directory.CreateDirectory(PropPrefabDir);
+            var guids = AssetDatabase.FindAssets("t:Model", new[] { PropDir });
+            int made = 0;
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.EndsWith(".glb")) continue;
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (model == null) continue;
+                var name = Path.GetFileNameWithoutExtension(path);
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropPrefabDir}/{name}.prefab");
+                if (prefab == null)
+                {
+                    prefab = PrefabUtility.InstantiatePrefab(model) as GameObject;
+                    ApplyPropMaterials(prefab);
+                    PrefabUtility.SaveAsPrefabAsset(prefab, $"{PropPrefabDir}/{name}.prefab");
+                    Object.DestroyImmediate(prefab);
+                }
+                made++;
+            }
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[inkwave] {made} prop prefabs are ready");
+        }
+
+        /// The prop colours live in the vertex colours, so every material is the same shader with its own
+        /// roughness / metalness (the values the web build's prop materials use).
+        static void ApplyPropMaterials(GameObject root)
+        {
+            var shader = Shader.Find("INKWAVE/VertexColorLit");
+            if (shader == null) { Debug.LogError("[inkwave] the prop shader is missing"); return; }
+            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var src = r.sharedMaterial;
+                var mat = new Material(shader);
+                if (src != null)
+                {
+                    mat.name = src.name;
+                    if (src.HasProperty("_Metallic")) mat.SetFloat("_Metallic", src.GetFloat("_Metallic"));
+                    if (src.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", src.GetFloat("_Smoothness"));
+                    else if (src.HasProperty("_Roughness")) mat.SetFloat("_Smoothness", 1f - src.GetFloat("_Roughness"));
+                }
+                r.sharedMaterial = mat;
+            }
+        }
+
+        [MenuItem("Tools/INKWAVE/Build Play Scene")]
+        public static void BuildScene()
+        {
+            BuildMaterials();
+            Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
+
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            // the camera + the rig
+            var camGo = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
+            camGo.tag = "MainCamera";
+            var cam = camGo.GetComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.fieldOfView = 70f;
+            cam.nearClipPlane = 0.15f;
+            cam.farClipPlane = 650f;
+            var rig = camGo.AddComponent<CameraRig>();
+            rig.Cam = cam;
+
+            // the light
+            var lightGo = new GameObject("Directional Light", typeof(Light));
+            var light = lightGo.GetComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1.1f;
+            light.shadows = LightShadows.Soft;
+            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+
+            // the game
+            var gameGo = new GameObject("INKWAVE", typeof(Game), typeof(PlayerInput));
+            var game = gameGo.GetComponent<Game>();
+            game.Rig = rig;
+            var levelViewGo = new GameObject("LevelView", typeof(LevelRenderer));
+            var levelView = levelViewGo.GetComponent<LevelRenderer>();
+            levelView.SurfaceMaterial = AssetDatabase.LoadAssetAtPath<Material>(MatDir + "/InkSurface.mat");
+            levelView.transform.SetParent(gameGo.transform, false);
+            game.LevelView = levelView;
+
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            Debug.Log($"[inkwave] the scene is ready: {ScenePath}");
+        }
+
+        // --------------------------------------------------------------------------------- the player builds
+        [MenuItem("Tools/INKWAVE/Build Linux Player")]
+        public static void BuildLinuxPlayer() => BuildPlayer(BuildTarget.StandaloneLinux64, "INKWAVE-linux");
+
+        [MenuItem("Tools/INKWAVE/Build Windows Player")]
+        public static void BuildWindowsPlayer() => BuildPlayer(BuildTarget.StandaloneWindows64, "INKWAVE-win64");
+
+        [MenuItem("Tools/INKWAVE/Build macOS Player")]
+        public static void BuildMacPlayer() => BuildPlayer(BuildTarget.StandaloneOSX, "INKWAVE-mac");
+
+        /// Build a standalone player (the CI calls BuildLinuxPlayer).
+        public static void BuildPlayer(BuildTarget target, string name)
+        {
+            BuildMaterials();
+            BuildScene();
+            var dir = Path.Combine(Directory.GetCurrentDirectory(), "Build", target.ToString());
+            Directory.CreateDirectory(dir);
+            var opts = new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = Path.Combine(dir, name),
+                target = target,
+                options = BuildOptions.None,
+            };
+            var report = BuildPipeline.BuildPlayer(opts);
+            Debug.Log($"[inkwave] the player is built: {report.summary.outputPath} ({report.summary.result}, " +
+                      $"{report.summary.totalSize / (1024 * 1024)} MB)");
+        }
+    }
+}
