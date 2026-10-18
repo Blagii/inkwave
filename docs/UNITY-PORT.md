@@ -45,7 +45,7 @@ C# čita postoji u izvezenim podacima**. Ako se neko ime promeni u `src/config.j
 | `src/game/match.js` | `Scripts/Gameplay/Match.cs` | ✅ (turf tok; zone/boss nisu) |
 | `src/game/bots.js` | `Scripts/Gameplay/Match.cs` → `BotBrain` | ◐ uprošćen bot (ciljanje + pucanje) |
 | `src/game/cameraRig.js` | `Scripts/Gameplay/CameraRig.cs` | ✅ (follow) |
-| `src/world/stages/*`, `dressing.js` | izvezen u `stages.json` | ✅ podatak / ⬜ geometrija propova |
+| `src/world/stages/*`, `dressing.js` | izvezen u `stages.json` (+ bake u glTF) | ✅ |
 | `src/game/character*.js` (likovi) | `Scripts/Render/ActorRenderer.cs` (placeholder kapsula) | ⬜ |
 | `src/ui/*` (meniji, HUD) | — | ⬜ |
 | `src/net/*` (relay, online) | — | ⬜ |
@@ -68,9 +68,19 @@ Izlaz (trenutno):
 
 | Fajl | Sadržaj | Veličina |
 |---|---|---|
-| `stages.json` | 8 stage-ova · 1585 blokova · 2962 propa | ~2.4 MB |
+| `stages.json` | 8 stage-ova · 6371 blokova (uključujući **kolizije propova**) · 2962 propa | ~2.4 MB |
 | `config.json` | 15 oružja, svi PLAYER/MATCH/ZONES/DIFFICULTY brojevi, 8 mapa | ~35 kB |
 | `i18n.json` | EN (119 fraza) + ZH | ~59 kB |
+
+**Kolizije propova idu uz podatke.** U web buildu solidni propovi vraćaju kolizione kutije koje postaju deo nivoa
+(`src/main.js → new Level(layout, colliders)`). Exporter pokreće **isti** prop builder (headless, bez WebGL-a) i
+dopisuje te kutije u `stages.json` kao `hidden` blokove — pa se arena u Unity-ju sudara **identično** kao u webu.
+
+**Geometrija propova se bake-uje u glTF.** Propovi su proceduralni (≈3000 postavljanja, 6.1M trouglova za turf),
+pa ih Unity ne može da izgeneriše: `npm run unity:bake` ih bake-uje u `unity/INKWAVE/Assets/INKWAVE/Props/*.glb`
+(KHR_mesh_quantization, vertex boje nose paletu i ugrađeni AO). `.glb` fajlovi su **build artefakti i nisu u
+repo-u** (kao muzika u `songs/`) — tool je u repou, bake se radi lokalno, pa
+`Tools → INKWAVE → Build Prop Prefabs` napravi prefabe koje igra učitava.
 
 Exporter već primenjuje **mirror** (`half` → 180° oko Y, kao `src/world/level.js → mirrorDef`) i **filter po
 modu** (`turf` / `zones`, kao `src/world/variants.js`), pa C# nema pravilo koje može da se pokvari.
@@ -98,9 +108,9 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 
 ### ◐ Faza U2 — Rendering i sadržaj (u toku)
 - ✅ Level mesh iz blokova (svaka farba ima UV u ink atlasu).
-- ✅ `InkSplat.shader` (URP) + `InkSurface.shader` (URP).
-- ⬜ **Prop geometrija**: 2962 postavljanja je izvezeno, ali mesh-evi propa još nisu bake-ovani.
-  Plan: bake iz postojećih three.js prop laboratorija u glTF, pa import u Unity (`tools/unity-export/bake-props.mjs`).
+- ✅ `InkSplat.shader` (URP) + `InkSurface.shader` (URP) + `VertexColorLit.shader` (propovi).
+- ✅ **Prop geometrija**: bake-ovana u glTF (`npm run unity:bake`), 16 fajlova (8 stage-ova × 2 moda).
+  Nedostaje: tekstura natpisa (canvas atlas) i lančana ograda (oba traže canvas teksturu).
 - ⬜ **Likovi** (character art, 4062 linije u web buildu): trenutno placeholder kapsula.
 - ⬜ **HUD/UI**: Unity UI Toolkit; skor, timer, mapa, oružje, specijal.
 
@@ -117,7 +127,7 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 
 | # | Tačka | Uticaj | Plan |
 |---|---|---|---|
-| 1 | Prop geometrija (2962 komada) | Arena deluje prazno bez nje | Bake u glTF iz three.js laboratorija |
+| 1 | Prop teksture (natpisi, ograda) | Propovi su bez štampa i ograda | Canvas atlas u Unity-ju (UI Toolkit / proceduran) |
 | 2 | Likovi (character art) | Vizuelno daleko od web builda | Port character-geo/mats/outfit ili novi modeli |
 | 3 | Oružja: roller/twins/brush/slosher/splatling/brolly/bow/blade/mitts | Ponašanje ≠ web build | Port `_roller`/`_twins`/`_brush`/… iz `weapons.js` po vrsti |
 | 4 | Bot AI (2088 linija) | Botovi su slabiji | Port `BotBrain` (navigacija, farbanje ink-a, sub tajming) |
@@ -136,10 +146,12 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 # 1. promeniš nešto u src/ (mapa, balans, tekst)
 npm run unity:export        # podaci se prebacuju u Unity projekat
 npm run unity:check         # provjera da C# čita brojeve koji postoje
+npm run unity:bake          # (opcijeno) propovi → glTF — samo ako se menja scena/propovi
 
 # 2. otvori Unity
 open unity/INKWAVE          # Unity Hub → projekat
-#   Tools → INKWAVE → Build Play Scene   (scena + materijali)
+#   Tools → INKWAVE → Build Prop Prefabs  (ako je radio bake)
+#   Tools → INKWAVE → Build Play Scene    (scena + materijali)
 #   Play
 ```
 

@@ -18,6 +18,8 @@ namespace INKWAVE.EDITOR
     {
         const string ScenePath = "Assets/INKWAVE/Scenes/Play.unity";
         const string MatDir = "Assets/INKWAVE/Materials";
+        const string PropDir = "Assets/INKWAVE/Props";
+        const string PropPrefabDir = "Assets/Resources/INKWAVE/Props";
 
         [MenuItem("Tools/INKWAVE/Build Materials")]
         public static void BuildMaterials()
@@ -41,6 +43,55 @@ namespace INKWAVE.EDITOR
             }
             else mat.shader = shader;
             EditorUtility.SetDirty(mat);
+        }
+
+        [MenuItem("Tools/INKWAVE/Build Prop Prefabs")]
+        public static void BuildPropPrefabs()
+        {
+            // The baked glTF files (npm run unity:bake) become prefabs under Resources so the game can load them.
+            Directory.CreateDirectory(PropPrefabDir);
+            var guids = AssetDatabase.FindAssets("t:Model", new[] { PropDir });
+            int made = 0;
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.EndsWith(".glb")) continue;
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (model == null) continue;
+                var name = Path.GetFileNameWithoutExtension(path);
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropPrefabDir}/{name}.prefab");
+                if (prefab == null)
+                {
+                    prefab = PrefabUtility.InstantiatePrefab(model) as GameObject;
+                    ApplyPropMaterials(prefab);
+                    PrefabUtility.SaveAsPrefabAsset(prefab, $"{PropPrefabDir}/{name}.prefab");
+                    Object.DestroyImmediate(prefab);
+                }
+                made++;
+            }
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[inkwave] {made} prop prefabs are ready");
+        }
+
+        /// The prop colours live in the vertex colours, so every material is the same shader with its own
+        /// roughness / metalness (the values the web build's prop materials use).
+        static void ApplyPropMaterials(GameObject root)
+        {
+            var shader = Shader.Find("INKWAVE/VertexColorLit");
+            if (shader == null) { Debug.LogError("[inkwave] the prop shader is missing"); return; }
+            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var src = r.sharedMaterial;
+                var mat = new Material(shader);
+                if (src != null)
+                {
+                    mat.name = src.name;
+                    if (src.HasProperty("_Metallic")) mat.SetFloat("_Metallic", src.GetFloat("_Metallic"));
+                    if (src.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", src.GetFloat("_Smoothness"));
+                    else if (src.HasProperty("_Roughness")) mat.SetFloat("_Smoothness", 1f - src.GetFloat("_Roughness"));
+                }
+                r.sharedMaterial = mat;
+            }
         }
 
         [MenuItem("Tools/INKWAVE/Build Play Scene")]

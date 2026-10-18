@@ -32,7 +32,8 @@
     "package:steam": "npm run -s prepare:steam && npm run -s package",
     "deck:copy": "node build/copy-deck-configs.mjs",
     "unity:export": "node tools/unity-export/export-data.mjs",
-    "unity:check": "node tools/unity-export/check-data.mjs"
+    "unity:check": "node tools/unity-export/check-data.mjs",
+    "unity:bake": "node tools/unity-export/bake-props.mjs"
   },
   "keywords": [
     "game",

@@ -29,6 +29,7 @@ namespace INKWAVE.Core
             GameData.Load();
             GameContext.LoadStage(StageId, ModeId);
             if (LevelView != null) LevelView.Build(GameContext.Level, GameContext.Paint);
+            LoadProps();
 
             _input = GetComponent<PlayerInput>();
             _match = new Match();
@@ -43,6 +44,21 @@ namespace INKWAVE.Core
                 ar.transform.SetParent(transform, false);
             }
             if (Rig != null && _match.Local != null) Rig.SetTarget(_match.Local);
+        }
+
+        /// The baked set dressing (npm run unity:bake → Tools → INKWAVE → Build Prop Prefabs).
+        void LoadProps()
+        {
+            var prefab = Resources.Load<GameObject>($"INKWAVE/Props/{StageId}-{ModeId}");
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[inkwave] no prop prefab for '{StageId}-{ModeId}' — run `npm run unity:bake` " +
+                                 "and then Tools → INKWAVE → Build Prop Prefabs");
+                return;
+            }
+            var go = Instantiate(prefab);
+            go.name = "Props";
+            go.transform.SetParent(transform, false);
         }
 
         void Update()

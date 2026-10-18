@@ -25,6 +25,7 @@ const OUT = path.join(ROOT, 'unity/INKWAVE/Assets/Resources/INKWAVE');
 const { MAP_LAYOUTS } = await import('../../src/world/maps.js');
 const { dressingFor } = await import('../../src/world/dressing.js');
 const { STAGES } = await import('../../src/world/stages/index.js');
+const { PropKit } = await import('../../src/world/props.js');
 const { layoutFor, inMode, hasVariant } = await import('../../src/world/variants.js');
 const CFG = await import('../../src/config.js');
 const { ZH_PHRASES } = await import('../../src/i18n/zh.js');
@@ -81,6 +82,33 @@ function propsFor(stageId, mode) {
   return list;
 }
 
+// The solid props hand back collision boxes that become part of the level (physics, nav, paint) — the web build
+// feeds them to the Level as `extra` blocks (src/main.js → new Level(layout, colliders)). The Unity build gets the
+// same boxes, so the arenas collide exactly like the web build's.
+function colliderBlocks(colliders) {
+  return colliders.map((c) => {
+    const b = c.obox
+      ? { kind: 'obox', center: c.center, size: c.size, rotY: c.rotY }
+      : { kind: 'box', min: c.min, max: c.max };
+    b.paint = false; b.solid = true; b.hidden = true;
+    if (c.roof) b.roof = true;
+    if (c.rail) b.rail = true;
+    if (c.perch) b.perch = true;
+    return b;
+  });
+}
+
+function propColliders(placementList) {
+  // The prop kit runs headless here (no WebGL, no canvas): only the geometry and the colliders are needed.
+  const kit = new PropKit(null, { headless: true, quality: 'high' });
+  const out = [];
+  for (const p of placementList) {
+    const r = kit.add(p.type, p);
+    if (r && r.colliders) out.push(...r.colliders);
+  }
+  return out;
+}
+
 // --------------------------------------------------------------------------------------------------- stages
 const stages = [];
 for (const def of CFG.MAPS) {
@@ -105,11 +133,13 @@ for (const def of CFG.MAPS) {
   };
   for (const mode of MODES) {
     const L = layoutFor(layout, mode);
-    const blocks = [...L.single, ...L.half, ...L.half.map(mirrorDef)].map(packBlock);
+    const props = propsFor(def.id, mode);
+    const extra = colliderBlocks(propColliders(props));
+    const blocks = [...L.single, ...L.half, ...L.half.map(mirrorDef), ...extra].map(packBlock);
     stage.modes[mode] = {
       variant: hasVariant(layout, dressingFor(def.id), mode),
       blocks,
-      props: propsFor(def.id, mode),
+      props,
     };
   }
   stages.push(stage);
