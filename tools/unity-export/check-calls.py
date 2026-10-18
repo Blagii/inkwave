@@ -200,19 +200,21 @@ for p, src in texts.items():
                     vtype = text(g, src).strip()
                     break
             for g in node.children:
-                if g.type == "variable_declarator":
-                    for h in g.children:
-                        if h.type == "identifier":
-                            name = h.text.decode("utf-8")
-                            scope[name] = vtype
-                            if vtype is None:
-                                # "var x = new Foo()" -> the type is Foo
-                                for d in g.children:
-                                    if d.type == "object_creation_expression":
-                                        for e in d.children:
-                                            if e.type == "identifier":
-                                                scope[name] = e.text.decode("utf-8")
-                                                break
+                if g.type != "variable_declarator":
+                    continue
+                kids = [h for h in g.children if h.type == "identifier"]
+                if not kids:
+                    continue
+                name = kids[0].text.decode("utf-8")
+                scope[name] = vtype
+                if vtype is None:
+                    # "var x = new Foo()" -> the type is Foo
+                    for d in g.children:
+                        if d.type == "object_creation_expression":
+                            for e in d.children:
+                                if e.type == "identifier":
+                                    scope[name] = e.text.decode("utf-8")
+                                    break
     # the parameters of the methods: name -> type
     for node in walk(tree.root_node):
         if node.type != "invocation_expression":
