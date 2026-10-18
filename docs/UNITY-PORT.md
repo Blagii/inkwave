@@ -126,8 +126,12 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 - ✅ `InkSplat.shader` (URP) + `InkSurface.shader` (URP) + `VertexColorLit.shader` (propovi).
 - ✅ **Prop geometrija**: bake-ovana u glTF (`npm run unity:bake`), 16 fajlova (8 stage-ova × 2 moda).
   Nedostaje: tekstura natpisa (canvas atlas) i lančana ograda (oba traže canvas teksturu).
-- ⬜ **Likovi** (character art, 4062 linije u web buildu): trenutno placeholder kapsula.
-- ⬜ **HUD/UI**: Unity UI Toolkit; skor, timer, mapa, oružje, specijal.
+- ✅ **Likovi**: squid kid se pravi proceduralno (`ActorRenderer.cs` — telo, glava, oči koje prate nišan,
+  ruke, noge, rezervoar boje, tenkice; forma lignjena za plivanje). Nema spoljnjih art asseta; boje timova
+  iz `config.json` (materijali `Resources/INKWAVE/Materials/Team{0,1}`). Još nema: lica, frizura, outfit
+  po oružju (port `character.js` / `character-weapons.js`).
+- ✅ **HUD**: `Hud.cs` (IMGUI, bez UI asseta): meter boje, rezultat i tajmer, oružje i specijal, nišan,
+  upozorenje za malo boje. Docniji UI (UI Toolkit, mapa, ubice) je sledeći korak.
 
 ### ⬜ Faza U3 — Online, Steam, build
 - Netcode: isti Cloudflare Durable Object WebSocket protokol (`server/src/index.js`) u C#.
@@ -143,7 +147,7 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 | # | Tačka | Uticaj | Plan |
 |---|---|---|---|
 | 1 | Prop teksture (natpisi, ograda) | Propovi su bez štampa i ograda | Canvas atlas u Unity-ju (UI Toolkit / proceduran) |
-| 2 | Likovi (character art) | Vizuelno daleko od web builda | Port character-geo/mats/outfit ili novi modeli |
+| 2 | Likovi (detalji) | Karakter je proceduralan, ali bez lica / frizure / outfita | Port character-geo/mats/outfit ili novi modeli |
 | 3 | Oružja: bucket/brush/brolly/bow/blade/mitts | Ponašanje ≠ web build | Port `_bucket`/`_brush`/`_brolly`/`_bow`/`_blade`/`_mitts` iz `weapons.js` po vrsti |
 | 4 | Bot AI (2088 linija) | Botovi su slabiji | Port `BotBrain` (navigacija, farbanje ink-a, sub tajming) |
 | 5 | Zone Control + Boss mod | Nisu u portu | `src/game/zones.js`, `src/boss/*` |

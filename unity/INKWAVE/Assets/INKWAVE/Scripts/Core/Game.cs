@@ -44,6 +44,13 @@ namespace INKWAVE.Core
                 ar.transform.SetParent(transform, false);
             }
             if (Rig != null && _match.Local != null) Rig.SetTarget(_match.Local);
+
+            // the HUD
+            var hudGo = new GameObject("Hud");
+            hudGo.transform.SetParent(transform, false);
+            var hud = hudGo.AddComponent<Hud>();
+            hud.Match = _match;
+            hud.Local = _match.Local;
         }
 
         /// The baked set dressing (npm run unity:bake → Tools → INKWAVE → Build Prop Prefabs).

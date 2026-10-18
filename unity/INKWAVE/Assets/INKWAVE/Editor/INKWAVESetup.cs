@@ -27,8 +27,31 @@ namespace INKWAVE.EDITOR
             Directory.CreateDirectory(MatDir);
             MakeMaterial("INKWAVE/InkSurface", "Assets/INKWAVE/Materials/InkSurface.mat");
             MakeMaterial("INKWAVE/InkSplat", "Assets/INKWAVE/Materials/InkSplat.mat");
+            // the team materials live in Resources so the runtime finds them (and the shader stays in the build)
+            Directory.CreateDirectory(TeamMatDir);
+            MakeTeamMaterial("Team0", new Color(1f, 0.541f, 0.078f));
+            MakeTeamMaterial("Team1", new Color(0.184f, 0.357f, 1f));
             AssetDatabase.SaveAssets();
             Debug.Log("[inkwave] the materials are ready");
+        }
+
+        const string TeamMatDir = "Assets/Resources/INKWAVE/Materials";
+
+        static void MakeTeamMaterial(string name, Color color)
+        {
+            var shader = Shader.Find("INKWAVE/Character");
+            if (shader == null) { Debug.LogError("[inkwave] the character shader is missing"); return; }
+            var path = $"{TeamMatDir}/{name}.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            else mat.shader = shader;
+            mat.SetColor("_BaseColor", color);
+            mat.SetColor("_RimColor", color);
+            EditorUtility.SetDirty(mat);
         }
 
         static void MakeMaterial(string shaderName, string path)
