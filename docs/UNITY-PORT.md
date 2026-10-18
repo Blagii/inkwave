@@ -156,12 +156,13 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 - ✅ **HUD**: `Hud.cs` (IMGUI, bez UI asseta): meter boje, rezultat i tajmer, oružje i specijal, nišan,
   upozorenje za malo boje. Docniji UI (UI Toolkit, mapa, ubice) je sledeći korak.
 
-### ⬜ Faza U3 — Online, Steam, build
-- Netcode: isti Cloudflare Durable Object WebSocket protokol (`server/src/index.js`) u C#.
-- Steamworks: `UnitySteamworks` (13 dostignuća, Rich Presence, Cloud `inkwave-save.json`), **gracful
-  degradation** — build radi i bez Steama (kao danas web build).
-- Steam Deck: quality preset po detekciji + `controller_neptune_gamepad_mouse_gyro.vdf` (već postoji u repou).
-- Unity build pipeline (desktop) + CI job.
+### ◐ Faza U3 — Online, Steam, build (u toku)
+- ✅ **Unity build pipeline**: `Tools → INKWAVE → Build Linux / Windows / macOS Player` + CI job
+  (`game-ci/unity-builder`, Linux igrač na svakom push-u).
+- ⬜ Netcode: isti Cloudflare Durable Object WebSocket protokol (`server/src/index.js`) u C#.
+- ⬜ Steamworks: `UnitySteamworks` (13 dostignuća, Rich Presence, Cloud `inkwave-save.json`), **gracful
+  degradation** — build radi i bez Steama.
+- ⬜ Steam Deck: quality preset po detekciji + `controller_neptune_gamepad_mouse_gyro.vdf` (već postoji u repou).
 
 ---
 
