@@ -144,6 +144,20 @@ files.sort()
 
 
 
+def access(node):
+    """The accessibility of a member (private by default)."""
+    for c in node.children:
+        if c.type == "modifier":
+            t = c.text.decode("utf-8")
+            if "public" in t:
+                return "public"
+            if "protected" in t:
+                return "protected"
+            if "internal" in t:
+                return "internal"
+    return "private"
+
+
 def enum_members(node):
     """The names of the members of an enum (they live in a list node)."""
     names = set()
@@ -221,6 +235,7 @@ for p in files:
                         break
                 info["members"].add(mname)
                 info["methods"].setdefault(mname, []).append(rtype or "?")
+                info.setdefault("access", {})[mname] = access(m)
                 sig = (mname, tuple(p[0] for p in info["params"]))
                 if sig in info["sigs"]:
                     info["dups"].append(mname + "()")
@@ -244,11 +259,13 @@ for p in files:
                                             info["dups"].append(nm)
                                         info["members"].add(nm)
                                         info["fields"][nm] = ftype
+                                        info.setdefault("access", {})[nm] = access(m)
                     elif c.type == "identifier":
                         nm = c.text.decode("utf-8")
                         if nm in info["fields"]:
                             info["dups"].append(nm)
                         info["members"].add(nm)
+                        info.setdefault("access", {})[nm] = access(m)
                     elif c.type == "variable_declaration":
                         pass
                 for c in m.children:
@@ -270,6 +287,7 @@ for p in files:
             old_info = classes[name]
             old_info["members"] |= info["members"]
             old_info["fields"].update(info["fields"])
+            old_info.setdefault("access", {}).update(info.get("access", {}))
             for k, v in info["methods"].items():
                 old_info["methods"].setdefault(k, []).extend(v)
         else:
@@ -353,9 +371,33 @@ def build_scopes(src, tree, own_classes):
                                     if idn.type == "identifier":
                                         base[idn.text.decode("utf-8")] = ftype
     methods = []
+    dup_locals = []
     for node in walk(tree.root_node):
         if node.type != "method_declaration":
             continue
+        # the same local declared twice in one block (CS0128)
+        for blk in walk(node):
+            if blk.type not in ("block", "switch_block", "local_function_statement", "constructor_body"):
+                continue
+            names = []
+            for d in blk.children:
+                if d.type != "local_declaration_statement":
+                    continue
+                for vd in d.children:
+                    if vd.type != "variable_declaration":
+                        continue
+                    for var in vd.children:
+                        if var.type != "variable_declarator":
+                            continue
+                        for h in var.children:
+                            if h.type == "identifier":
+                                names.append(h.text.decode("utf-8"))
+                                break        # the first identifier is the name
+            seen = set()
+            for n in names:
+                if n in seen:
+                    dup_locals.append(n)
+                seen.add(n)
         scope = dict(base)
         for child in walk(node):
             if child.type == "parameter":
@@ -399,7 +441,7 @@ def build_scopes(src, tree, own_classes):
                     else:
                         scope[vname] = infer(value, src, scope, own_classes)
         methods.append((node, scope))
-    return base, methods
+    return base, methods, dup_locals
 
 
 def infer(node, src, scope, own_classes):
@@ -499,12 +541,28 @@ for p in files:
         raw = f.read()
     src = strip_code(raw)
     tree = PARSER.parse(src)
-    base, methods = build_scopes(src, tree, classes)
+    base, methods, dup_locals = build_scopes(src, tree, classes)
     rel = os.path.relpath(p, ROOT)
+    for d in sorted(set(dup_locals)):
+        typed.setdefault(f"{rel}:local", []).append(f"the local '{d}' is declared twice in the same block")
+    class_stack = []
+    for node in walk(tree.root_node):
+        if node.type in ("class_declaration", "struct_declaration"):
+            nm = None
+            for c in node.children:
+                if c.type == "identifier":
+                    nm = c.text.decode("utf-8")
+                    break
+            if nm:
+                class_stack.append((node, nm))
     for m in ACCESS.finditer(src):
         mem = m.group(2).decode("utf-8")
         recv = m.group(1).decode("utf-8")
         line = src[:m.start()].count(b"\n") + 1
+        current_class = ""
+        for cnode, cname in class_stack:
+            if cnode.start_byte <= m.start() < cnode.end_byte:
+                current_class = cname
         scope = base
         for mnode, mscope in methods:
             if mnode.start_byte <= m.start() < mnode.end_byte:
@@ -515,6 +573,10 @@ for p in files:
             bt = base_type(rtype)
             if bt in classes:
                 if mem in classes[bt]["members"]:
+                    acc = classes[bt].get("access", {}).get(mem, "public")
+                    if acc == "private" and bt != current_class:
+                        typed.setdefault(f"{rel}:{line}", []).append(
+                            f"the member '.{mem}' of '{bt}' is private (a {recv})")
                     continue
                 if mem in MONO:
                     continue

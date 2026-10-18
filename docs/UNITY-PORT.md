@@ -210,7 +210,7 @@ Sandbox nema Unity Editor ni C# kompajler, pa je pored `npm run unity:check` (po
 | Skripta | Šta hvata | Primer |
 |---|---|---|
 | `tools/unity-export/check-csharp.py` | sintaksu (CS1xxx) | `out` kao ime parametra, `readonly` niz sa `=` |
-| `tools/unity-export/check-members.py` | članove koji ne postoje (CS0117/CS1061) — i to **na pravom tipu**; duplikate u klasi (CS0102/CS0111) | `Projectiles.FireSlosh` umjesto `FireSlosher` |
+| `tools/unity-export/check-members.py` | članove koji ne postoje (CS0117/CS1061) — i to **na pravom tipu**; duplikate u klasi (CS0102/CS0111), privatne članove (CS0122), duplikate lokalnih (CS0128) | `Projectiles.FireSlosh` umjesto `FireSlosher` |
 | `tools/unity-export/check-namespaces.py` | `using`, dostižnost tipova (CS0246) i neodređena imena (CS0104) | `Physics` iz `INKWAVE.World` i `UnityEngine` |
 | `tools/unity-export/check-calls.py` | tipove i broj argumenata (CS1503/CS1501) i nepostojeće pozive (CS0103) | `float` u `int` parametar |
 
