@@ -442,7 +442,7 @@ namespace INKWAVE.Gameplay
                 if (Slosh >= w.Float("windup", 0.13f))
                 {
                     Slosh = -1f;
-                    Projectiles.FireSlosh(a, w);
+                    Projectiles.FireSlosher(a, w);
                     Cooldown = w.Float("fireInterval", 0.6f) - w.Float("windup", 0.13f);
                 }
                 return;

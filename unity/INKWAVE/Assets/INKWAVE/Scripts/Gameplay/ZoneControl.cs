@@ -32,7 +32,7 @@ namespace INKWAVE.Gameplay
             public readonly List<int> Cells = new List<int>();
             public Vector3 Center;
             public float Reach;
-            public float[] Poly = null;    // the outline (x, z pairs) for the point-in-polygon test
+            public List<List<float[]>> Polys = null;   // the outline(s) (x, z pairs) for the point-in-polygon test
         }
 
         public class Objective
@@ -60,7 +60,7 @@ namespace INKWAVE.Gameplay
         public readonly float[] Count = new float[2];
         public readonly float[] Penalty = new float[2];
         public readonly float[] Start = new float[2];
-        public readonly float[] TieEnd = new float[2] = { -1f, -1f };
+        public readonly float[] TieEnd = { -1f, -1f };
         public readonly float[] HoldT = new float[2];
         public float Clock;
         public bool Final;
@@ -118,7 +118,7 @@ namespace INKWAVE.Gameplay
             var parts = new List<List<float[]>>();
             if (def.polys != null && def.polys.Count > 0) parts.AddRange(def.polys);
             else if (def.poly != null && def.poly.Count > 0) parts.Add(def.poly);
-            z.Poly = parts.Count > 0 ? parts[0].ToArray() : null;
+            z.Polys = parts;
 
             float y0 = def.y0, y1 = def.y1;
             var level = GameContext.Level;

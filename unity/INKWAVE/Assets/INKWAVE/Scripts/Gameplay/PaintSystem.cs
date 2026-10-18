@@ -196,8 +196,8 @@ namespace INKWAVE.Gameplay
             _floods.Add(f);
         }
 
-        /// The face a paint-grid cell belongs to (-1 when there is none).
-        public int CellFaceId(int k)
+        /// The index (in the paintable list) of the face a grid cell belongs to (-1 when there is none).
+        int CellFaceIndex(int k)
         {
             int lo = 0, hi = _paintFaces.Count - 1, face = -1;
             while (lo <= hi)
@@ -209,16 +209,23 @@ namespace INKWAVE.Gameplay
             if (face < 0) return -1;
             var f = _paintFaces[face];
             int l = k - f.Grid;
-            return (l < 0 || l >= f.Nu * f.Nv) ? -1 : f.Id;
+            return (l < 0 || l >= f.Nu * f.Nv) ? -1 : face;
+        }
+
+        /// The face a paint-grid cell belongs to (-1 when there is none).
+        public int CellFaceId(int k)
+        {
+            int face = CellFaceIndex(k);
+            return face < 0 ? -1 : _paintFaces[face].Id;
         }
 
         /// The world position of a paint-grid cell.
         public bool CellWorld(int k, out Vector3 p)
         {
             p = Vector3.zero;
-            int face = CellFaceId(k);
+            int face = CellFaceIndex(k);
             if (face < 0) return false;
-            var f = _level.Faces[face];
+            var f = _paintFaces[face];
             int l = k - f.Grid;
             int i = l % f.Nu, j = l / f.Nu;
             p = f.Origin + f.U * ((i + 0.5f) * f.Cu) + f.V * ((j + 0.5f) * f.Cv);

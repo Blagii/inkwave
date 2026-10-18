@@ -28,7 +28,7 @@ namespace INKWAVE.Core
         void Awake()
         {
             // the sound (a procedural synth that renders the clips at runtime)
-            if (AudioOn) Audio.AudioSystem.Inst;
+            if (AudioOn) Audio.AudioSystem.Ensure();
             GameData.Load();
             GameContext.LoadStage(StageId, ModeId);
             if (LevelView != null) LevelView.Build(GameContext.Level, GameContext.Paint);

@@ -150,9 +150,9 @@ namespace INKWAVE.Gameplay
             FiringT = 0.35f; a.FireFacing = 0.5f;
 
             Vector3 m = Projectiles.Muzzle(a);
-            Vector3 dir = Projectiles.AimFromPublic(a, m);
-            dir = Projectiles.BallisticPublic(m, dir, a.AimPoint, w.Float("projSpeed", 25f), w.Float("straightTime", 0.1f),
-                                             w.Float("pelletGrav", 30f), w.Float("pelletDrag", 2f), w.Float("range", 7f));
+            Vector3 dir = Projectiles.AimFrom(a, m, out _);
+            dir = Projectiles.Ballistic(m, dir, a.AimPoint, w.Float("projSpeed", 25f), w.Float("straightTime", 0.1f),
+                                        w.Float("pelletGrav", 30f), w.Float("pelletDrag", 2f), w.Float("range", 7f));
             var right = Vector3.Cross(dir, Vector3.up);
             if (right.sqrMagnitude < 1e-6f) right = Vector3.right;
             right.Normalize();

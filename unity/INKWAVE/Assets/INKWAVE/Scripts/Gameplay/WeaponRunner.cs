@@ -283,13 +283,13 @@ namespace INKWAVE.Gameplay
                                Mathf.Cos(a.AimYaw) * cp * speed + a.Vel.z * 0.4f);
         }
 
-        public static Vector3 AimFrom(Actor a, Vector3 from, out Vector3 out)
+        public static Vector3 AimFrom(Actor a, Vector3 from, out Vector3 dir)
         {
-            out = a.AimPoint - from;
-            float d = out.magnitude;
-            if (d < 2f || Vector3.Dot(out, a.AimDir) < 0f) out = a.AimDir;
-            else out /= d;
-            return out;
+            dir = a.AimPoint - from;
+            float d = dir.magnitude;
+            if (d < 2f || Vector3.Dot(dir, a.AimDir) < 0f) dir = a.AimDir;
+            else dir /= d;
+            return dir;
         }
 
         /// A random spread inside the cone.

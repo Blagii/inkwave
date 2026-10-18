@@ -158,6 +158,9 @@ namespace INKWAVE.Audio
         public float Master = 1f;
         public bool Enabled = true;
 
+        /// Create the audio system (once).
+        public static AudioSystem Ensure() => Inst;
+
         public static AudioSystem Inst
         {
             get

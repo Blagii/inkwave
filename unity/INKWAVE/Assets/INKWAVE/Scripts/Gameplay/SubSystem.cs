@@ -93,8 +93,8 @@ namespace INKWAVE.Gameplay
                         var a = actors[i];
                         if (a == null || a.Team == it.Team || !a.Alive) continue;
                         float h = a.Form == ActorForm.Squid ? GameData.P.Float("squidHeight", 0.55f) : GameData.P.Float("height", 1.45f);
-                        var res = new World.SegmentResult();
-                        World.Physics.SegmentCapsuleDist(from, it.Pos, a.Pos, hr + 0.1f, h, res);
+                        var res = new SegmentResult();
+                        Physics.SegmentCapsuleDist(from, it.Pos, a.Pos, hr + 0.1f, h, res);
                         if (res.Dist < hr + 0.12f)
                         {
                             it.Pos = Vector3.Lerp(from, it.Pos, res.T);

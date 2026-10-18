@@ -178,7 +178,7 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 | 9 | three.js / Electron u proizvodu | ✅ obrisano (web build, `index.html`, `styles/`, `vendor/`, `electron/`) | `src/` ostaje samo kao referenca (build-time alat za prop bake) |
 | 6 | Super jump / wall climb / specijali | Nisu u portu | `actor.js` (`_updateClimb`, `_updateSuperJump`), `specials.js` |
 | 7 | Proceduralni zvuk | Nema zvuka | Unity audio + port `src/audio/*` |
-| 8 | C# kompilacija | Sandbox nema Unity/kompajler | `npm run unity:check` pokriva podatke; kompilacija se radi lokalno |
+| 8 | C# kompilacija | Sandbox nema Unity/kompajler | `npm run unity:check` pokriva podatke + 4 statičke C# provjere; pravu kompilaciju radi Unity kod tebe |
 
 **Redosled prioriteta:** (1) propovi → (3) oružja → (2) likovi → (4) botovi → (5/6) modeovi → (7) zvuk.
 
@@ -189,7 +189,7 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 ```bash
 # 1. promeniš nešto u src/ (mapa, balans, tekst)
 npm run unity:export        # podaci se prebacuju u Unity projekat
-npm run unity:check         # provjera da C# čita brojeve koji postoje
+npm run unity:check         # provjera podataka + provjera C# koda (skripta, sintaksa, pozivi)
 npm run unity:bake          # (opcijeno) propovi → glTF — samo ako se menja scena/propovi
 
 # 2. otvori Unity
@@ -201,6 +201,21 @@ open unity/INKWAVE          # Unity Hub → projekat
 
 Build: `File → Build Settings` → Windows / macOS / Linux. Steam build se pravi iz istog Unity build-a
 (UnitySteamworks), pa Electron ljuska postaje nepotrebna.
+
+### Provjere C# koda (bez Unityja)
+
+Sandbox nema Unity Editor ni C# kompajler, pa je pored `npm run unity:check` (podaci) napravljena
+četiri statičke provjere koje hvataju greške koje bi Unity prijavio:
+
+| Skripta | Šta hvata | Primer |
+|---|---|---|
+| `tools/unity-export/check-csharp.py` | sintaksu (CS1xxx) | `out` kao ime parametra, `readonly` niz sa `=` |
+| `tools/unity-export/check-members.py` | članove koji ne postoje (CS0117/CS1061) | `Projectiles.FireSlosh` umjesto `FireSlosher` |
+| `tools/unity-export/check-namespaces.py` | `using` i kvalifikovana imena (CS0246/CS0103) | `using INKWAVE.Inputs;` |
+| `tools/unity-export/check-calls.py` | tipove argumenata i broj argumenata (CS1503/CS1501) | `float` u `int` parametar |
+
+Sve četiri se pokreću odjednom kroz `npm run unity:check`. Treba im `tree_sitter` i
+`tree_sitter_c_sharp` (`pip install tree_sitter tree_sitter_c_sharp`); bez njih se preskaču tiho.
 
 ---
 

@@ -210,7 +210,7 @@ namespace INKWAVE.Gameplay
         /// The score the HUD shows: the turf in Turf War, the countdown in Zone Control.
         public float[] Scores()
         {
-            if (Zones != null) return new[] { Mathf.CeilToInt(Zones.Count[0]), Mathf.CeilToInt(Zones.Count[1]) };
+            if (Zones != null) return new[] { (float)Mathf.CeilToInt(Zones.Count[0]), (float)Mathf.CeilToInt(Zones.Count[1]) };
             return new[] { (float)TurfCounts()[0], (float)TurfCounts()[1] };
         }
     }
