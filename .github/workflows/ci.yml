@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The game itself: syntax, the map layouts, the Steam integration logic and the web build.
+  check:
+    name: check (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run check
+      - run: npm run check-maps
+      - run: npm run steam-test
+      - run: npm run build
+      - name: the web build boots
+        run: |
+          python3 -m http.server 8490 --directory dist &
+          sleep 2
+          node tools/play.mjs "http://localhost:8490/?autostart=60&autopilot&shadercheck" '[{"until":"window.__inkwave && __inkwave.match && __inkwave.match.state===\"playing\" && __inkwave.match.local"},{"wait":8000},{"eval":"JSON.stringify({state:__inkwave.match.state,fps:__inkwave.fps})","log":"smoke"}]' --w 960 --h 540 --timeout 420
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inkwave-web
+          path: dist/
+
+  # The Windows build — the one Steam ships first.
+  package-win:
+    name: package windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run package:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inkwave-win32
+          path: dist/INKWAVE-win32-x64/
+
+  # The macOS build.
+  package-mac:
+    name: package macos
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run package:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inkwave-darwin
+          path: dist/INKWAVE-darwin-*/
+
+  # The Linux build (also what SteamOS runs natively).
+  package-linux:
+    name: package linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run package:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inkwave-linux
+          path: dist/INKWAVE-linux-x64/

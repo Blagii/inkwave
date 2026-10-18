@@ -15,6 +15,7 @@
 //   lag     best-fit delay between the owner's path and the remote render
 //   error   distance from the owner's path at that delay (RMS / p99)
 //   tele    frames that move > 1.2 m outside a respawn / super jump
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync } from 'node:fs';
 
@@ -43,10 +44,9 @@ watchdog.unref?.();
 const browsers = [], pages = [], logs = [];
 async function open(i) {
   const b = await puppeteer.launch({
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    executablePath: CHROME,
     headless: 'new',
-    args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`,
-      '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
+    args: chromeArgs([`--window-size=${W},${H}`, '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows']),
     defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
   });
   const p = await b.newPage();

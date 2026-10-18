@@ -2,6 +2,7 @@
 // usage: node tools/play.mjs <url> <script.json|inline-json> [--w 1600 --h 900]
 // script: [{"wait":ms},{"down":"KeyW"},{"up":"KeyW"},{"press":"Space"},{"mouse":"down"|"up"},{"move":[dx,dy]},
 //          {"shot":"/path.png"},{"eval":"js"},{"evalFile":"/path.js"},{"log":"label"}]
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -14,9 +15,9 @@ const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i
 const W = +opt('w', 1600), H = +opt('h', 900);
 
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  executablePath: CHROME,
   headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
+  args: chromeArgs([`--window-size=${W},${H}`]),
   defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
 });
 // always take the browser down with us (an orphaned headless Chrome keeps spinning its WebGL loop at 100 % CPU)

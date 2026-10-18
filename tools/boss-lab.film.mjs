@@ -1,6 +1,7 @@
 // Boss-lab capture: ONE headless Chrome, a list of jobs → stills + filmstrips. Always closes the browser.
 // usage: node tools/boss-lab.film.mjs <jobs.json | inline-json> [--out /private/tmp/boss/art] [--w 1600 --h 900]
 // job: { name, go: {preset, t, cam, phase, light, q, ...}, shot?: true, film?: {n, dt, cols, w, h}, eval?: "js" }
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 
@@ -19,9 +20,9 @@ process.on('uncaughtException', async (e) => { console.error(e); await kill(); p
 
 try {
   browser = await puppeteer.launch({
-    executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    executablePath: CHROME,
     headless: 'new',
-    args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', `--window-size=${W},${H}`],
+    args: chromeArgs([`--window-size=${W},${H}`]),
     defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
   });
   const page = await browser.newPage();

@@ -6,6 +6,7 @@
 //                                   [--perf] [--w 1600 --h 900] [--base http://localhost:8490] [--extra '{"top":{pos,look,fov}}'] [--pre "js"] [--ab "js A" "js B"]
 // outputs: <outDir>/<stage>-<time>-<cam>.png, <outDir>/perf.json (with --perf)
 // One headless Chrome for the whole run; always closed (also on error / SIGINT).
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -139,9 +140,9 @@ async function inPage(P) {
 }
 
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  executablePath: CHROME,
   headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
+  args: chromeArgs([`--window-size=${W},${H}`]),
   defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
   protocolTimeout: 600000,
 });

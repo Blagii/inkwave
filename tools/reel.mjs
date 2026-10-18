@@ -4,6 +4,7 @@
 // The spec is a page-side script that defines window.REEL = { init(), segs: [{ order, title, sub, dur, ... }],
 // begin(i) → meta, frame(i, f, fps) → JPEG dataURL (canvas mode) or null (shot mode: the page is screenshotted) }.
 // Frames land in <outDir>/seg-<order>/f-00000.jpg plus seg-<order>.json; tools/reel-compose.py turns them into an MP4.
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,9 +20,9 @@ const preWait = +opt('preWait', 0);
 const every = +opt('every', 1);          // test mode: keep only every Nth frame (all frames are still simulated)
 
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  executablePath: CHROME,
   headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
+  args: chromeArgs([`--window-size=${W},${H}`]),
   defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
   protocolTimeout: 600000,
 });

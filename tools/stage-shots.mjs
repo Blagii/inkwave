@@ -17,6 +17,7 @@
 // outputs: <out>/<id>-<time>.webp (1920×1080, q ≈ 0.86, kept ≤ ~350 KB), <out>/<id>-<time>-sm.webp (640×360,
 //          q ≈ 0.82), <out>/manifest.json, and a review sheet /private/tmp/menus/stages/contact.png (the crop of the
 //          ~1100×520 `object-fit: cover` hero panel is shown undimmed; everything outside it is dimmed).
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
@@ -182,9 +183,9 @@ async function captureInPage(P) {
 
 // ------------------------------------------------------------------------------------------------ browser
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  executablePath: CHROME,
   headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
+  args: chromeArgs([`--window-size=${W},${H}`]),
   defaultViewport: { width: W, height: H, deviceScaleFactor: DSF },
   protocolTimeout: 600000,
 });

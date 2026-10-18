@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jaydendavisnc/inkwave/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jaydendavisnc/inkwave/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Blagii/inkwave/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Blagii/inkwave/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-000000?logo=three.js&logoColor=white">
   <img alt="无需构建" src="https://img.shields.io/badge/build-none%20needed-2ea44f">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>

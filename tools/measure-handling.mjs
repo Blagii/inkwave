@@ -5,6 +5,7 @@
 //   accel/stop/reverse/turn times, facing turn rates, pos.y micro-bounce (2nd difference + high-pass residual),
 //   grounded flicker, camera angular jitter (high-pass residual of yaw/pitch), camera position jitter,
 //   jump arcs, jump buffer / coyote, swim + climb profiles, projectile-vs-crosshair error.
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
@@ -325,8 +326,8 @@ function arc(r, label) {
 
 // ------------------------------------------------------------------------------------------ run
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--window-size=1280,720'],
+  executablePath: CHROME, headless: 'new',
+  args: chromeArgs(['--window-size=1280,720']),
   defaultViewport: { width: 1280, height: 720, deviceScaleFactor: 1 },
 });
 const page = await browser.newPage();

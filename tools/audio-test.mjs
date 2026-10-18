@@ -7,6 +7,7 @@
 // Per render: duration (to -60 dBFS), peak / raw peak (dBFS, raw = without master dynamics), RMS (dBFS, active part),
 // LUFS-M max (BS.1770 K-weighted, 400 ms), integrated LUFS (music), DC offset, NaN count, clipped samples (>0.99),
 // clicks (sample-step outliers vs local activity), start/tail level, spectral balance (low <250, lmid <2k, hmid <6k, high).
+import { CHROME, chromeArgs } from './chrome.mjs';
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,9 +27,9 @@ const sec = contracts.slice(contracts.indexOf('SFX names (all must exist)'), con
 const CONTRACT_NAMES = [...sec.matchAll(/`([^`]+)`/g)].flatMap((m) => m[1].replace(/\([^)]*\)/g, ' ').split(/\s+/)).filter(Boolean);
 
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  executablePath: CHROME,
   headless: 'new',
-  args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox'],
+  args: chromeArgs(['--no-sandbox']),
   protocolTimeout: 1800000,
 });
 const page = await browser.newPage();
