@@ -30,6 +30,7 @@ import { Showcase } from './game/showcase.js';
 import { ZoneMarks } from './fx/zoneMarks.js';
 import { BOSS_MODE } from './boss/bossMode.js';
 import { setLang, t } from './i18n/strings.js';
+import { steam } from './net/steam.js';
 
 const params = new URLSearchParams(location.search);
 // dev-only: ?devstage lets an online-only stage (config onlineOnly — Cargo Terminal) boot as the backdrop and be walked
@@ -41,7 +42,7 @@ const REFRESH_RATES = [30, 48, 50, 60, 75, 90, 100, 120, 144, 165, 240]; // comm
 // ------------------------------------------------------------------------------------------ persistence
 function loadJSON(key, def) { try { const v = JSON.parse(localStorage.getItem(key)); return v ? { ...def, ...v } : { ...def }; } catch { return { ...def }; } }
 function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ } }
-const DEFAULT_PROFILE = { name: 'Player', level: 1, xp: 0, wins: 0, matches: 0, totalTurf: 0, weapon: 'shooter' };
+const DEFAULT_PROFILE = { name: 'Player', level: 1, xp: 0, wins: 0, matches: 0, totalTurf: 0, weapon: 'shooter', savedAt: 0, steam: { splats: 0, weaponsWon: [], modesWon: [], zonesCaptured: 0, bossKilled: 0 } };
 
 async function loadModule(path, stubName) {
   try { return await import(path); }
@@ -69,6 +70,10 @@ class Game {
     if (this.settings.fovMode !== 'h') { this.settings.fov = DEFAULT_SETTINGS.fov; this.settings.fovMode = 'h'; saveJSON('inkwave.settings', this.settings); }
     this.profile = loadJSON('inkwave.profile', DEFAULT_PROFILE);
     if (WEAPON_SUCCESSOR[this.profile.weapon]) this.profile.weapon = WEAPON_SUCCESSOR[this.profile.weapon];   // retired weapons
+    this.profile.steam = { ...DEFAULT_PROFILE.steam, ...(this.profile.steam || {}) };
+    // Steam (desktop build only): achievements, rich presence and cloud saves. A no-op without the Steamworks SDK.
+    await steam.init(this.profile, () => this._saveProfile());
+    await this._steamCloud();
     const app = document.getElementById('app');
     this.uiRoot = document.getElementById('ui-root');
     this.fadeEl = document.getElementById('fade');
@@ -161,6 +166,7 @@ class Game {
     // online session (G.net) — the menus' online screens and startNetMatch/netMatchGo/netMatchEnd below drive it
     try { (await import('./net/session.js')).installNet(); } catch (e) { console.error('[inkwave] net', e); }
     G.net?.on?.('lobby', ({ lobby }) => this._roomPalette(lobby));
+    G.net?.on?.('state', ({ state }) => { if (state === 'lobby') steam.presence('In a lobby'); });
     await progress(0.7, 'Tuning the tentacles…');
 
     this._setPalette(this._pickPalette());
@@ -181,6 +187,7 @@ class Game {
     this.timer = new THREE.Timer(); this.timer.connect?.(document);
     this.fpsAcc = 0; this.fpsN = 0; this.fps = 60;
     G.mode = 'menu';
+    steam.presence('In the menus');
     this.menus?.show(params.has('skipTitle') ? 'main' : 'title');
     // the online hub / lobby set loads in the background once the menus are idle (no arena flash on the first visit)
     if (!params.has('autostart')) setTimeout(() => { if (G.mode === 'menu') this.showcase.preloadLobby?.(); }, 2500);
@@ -351,6 +358,32 @@ class Game {
     return -1;
   }
 
+  // ------------------------------------------------------------------------------------ profile persistence
+  // Profile persistence: stamps the save time (used to settle a Steam Cloud conflict) and mirrors the profile to
+  // the cloud when Steam is available. Every write to the profile goes through here.
+  _saveProfile(p = this.profile) {
+    p.savedAt = Date.now();
+    saveJSON('inkwave.profile', p);
+    steam.saveProfile();
+  }
+
+  // Steam Cloud: the newer copy wins. The local profile is authoritative until the cloud has something newer.
+  async _steamCloud() {
+    if (!steam.enabled) return;
+    const cloud = await steam.loadProfile();
+    if (!cloud || !cloud.profile) { steam.saveProfile(); return; }
+    const localAt = this.profile.savedAt || 0;
+    const cloudAt = cloud.savedAt || 0;
+    if (cloudAt > localAt) {
+      Object.assign(this.profile, cloud.profile);       // in place: the steam module holds this object
+      this.profile.steam = { ...DEFAULT_PROFILE.steam, ...(this.profile.steam || {}) };
+      saveJSON('inkwave.profile', this.profile);
+      console.log('[inkwave] profile restored from Steam Cloud');
+    } else if (localAt > cloudAt) {
+      steam.saveProfile();
+    }
+  }
+
   // ---------------------------------------------------------------------------------------- menus api
   _menuApi() {
     const self = this;
@@ -363,9 +396,9 @@ class Game {
         const p = self.profile;
         return { ...p, played: p.matches, xpToNext: PROGRESSION.xpForLevel(p.level) };
       },
-      setProfileName: (n) => { self.profile.name = String(n || 'Player').slice(0, 16); saveJSON('inkwave.profile', self.profile); },
+      setProfileName: (n) => { self.profile.name = String(n || 'Player').slice(0, 16); self._saveProfile(); },
       // locker look ({ hair, skin, outfit, eyes, hat, brows, … } — indices into character-style.js tables)
-      setProfileStyle: (st) => { self.profile.style = { ...(st || {}) }; saveJSON('inkwave.profile', self.profile); },
+      setProfileStyle: (st) => { self.profile.style = { ...(st || {}) }; self._saveProfile(); },
       getLoadout: () => ({ weapon: self.profile.weapon || 'shooter', sub: self._subFor(self.profile.weapon), special: self._specialFor(self.profile.weapon) }),
       setLoadout: ({ weapon, sub, special }) => {
         if (weapon !== undefined) {
@@ -374,7 +407,7 @@ class Game {
         }
         if (sub !== undefined) self.profile.sub = SUBS[sub] ? sub : null;
         if (special !== undefined) self.profile.special = SPECIALS[special] ? special : null;
-        saveJSON('inkwave.profile', self.profile);
+        self._saveProfile();
         if (self.menus?.current === 'loadout' && weapon !== undefined) self.showcase.showLoadout(weapon, G.teamColors[0], self.profile.style);
         self._applyPracticeLoadout();   // in practice the new kit is in your hands straight away
       },
@@ -574,6 +607,7 @@ class Game {
       if (match.attract || match !== this.match) return;
       if (state === 'intro') this._intro();
       if (state === 'playing') {
+        steam.presence(`${match.practice ? 'Practising' : 'In a match'} — ${this.mapDef?.name || ''}`.trim());
         if (!match.practice) { this.hud?.banner('go'); G.audio?.play('go_horn'); }
         if (match.mode !== 'boss') this._playMusic('battle');   // boss mode: the boss audio director scores it by phase
         if (this.match.local) { this.rig.follow(this.match.local, true); }
@@ -591,6 +625,7 @@ class Game {
         if (match.boss) this._bossFinishCam(match.boss);
       }
       if (state === 'judge') this._judge();
+      if (state === 'results') steam.presence('In the menus');
     });
   }
 
@@ -978,7 +1013,8 @@ class Game {
     const before = { level: p.level, xp: p.xp, toNext: PROGRESSION.xpForLevel(p.level) };
     p.xp += gained; p.matches++; if (won) p.wins++; p.totalTurf += turf;
     while (p.xp >= PROGRESSION.xpForLevel(p.level)) { p.xp -= PROGRESSION.xpForLevel(p.level); p.level++; }
-    saveJSON('inkwave.profile', p);
+    this._saveProfile(p);
+    steam.matchResult({ win: won, mode: 'boss', weapon: local.weaponId, level: p.level, wins: p.wins, matches: p.matches, totalTurf: p.totalTurf });
     const data = {
       mode: 'boss', win: won, percents: [cov[0] * 100, cov[1] * 100], colors: [G.teamHex[0], G.teamHex[1]], teamNames: this.palette.names || TEAM_NAMES,
       boss: { name: bo.name, defeated: won, time: bo.time, hpLeft: bo.maxHp ? bo.hp / bo.maxHp : 0, phase: bo.phase, maxHp: bo.maxHp },
@@ -1034,7 +1070,8 @@ class Game {
     const before = { level: p.level, xp: p.xp, toNext: PROGRESSION.xpForLevel(p.level) };
     p.xp += gained; p.matches++; if (won) p.wins++; p.totalTurf += turf;
     while (p.xp >= PROGRESSION.xpForLevel(p.level)) { p.xp -= PROGRESSION.xpForLevel(p.level); p.level++; }
-    saveJSON('inkwave.profile', p);
+    this._saveProfile(p);
+    steam.matchResult({ win: won, mode: zr ? 'zones' : 'turf', weapon: local.weaponId, level: p.level, wins: p.wins, matches: p.matches, totalTurf: p.totalTurf });
     const data = {
       win: won, percents: [cov[0] * 100, cov[1] * 100], colors: [G.teamHex[0], G.teamHex[1]], teamNames: this.palette.names || TEAM_NAMES,
       players: m.actors.map((a) => ({ name: a.name, team: a.team, weapon: a.weaponId, turf: Math.round(a.stats.turf), splats: a.stats.splats, deaths: a.stats.deaths, isSelf: a.isLocal, bot: !!a.isBot, ...(zr ? { zoneTurf: Math.round(a.stats.zoneTurf || 0) } : {}) })),

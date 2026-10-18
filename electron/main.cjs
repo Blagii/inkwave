@@ -4,6 +4,7 @@ const { app, BrowserWindow, Menu, protocol, net, shell, powerSaveBlocker, ipcMai
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { Steam } = require('./steam.cjs');
 
 const ROOT = path.join(__dirname, '..');
 
@@ -137,8 +138,40 @@ function buildMenu() {
   ]));
 }
 
+// ---- Steamworks bridge (renderer → main → Steamworks SDK) ------------------------
+// The renderer never sees the SDK: it talks to these IPC channels, which stay inert when Steam is unavailable.
+const steam = new Steam();
+
+function installSteamIpc() {
+  const handle = (channel, fn) => {
+    ipcMain.removeHandler(channel);   // re-installing (a second app instance) must not throw
+    ipcMain.handle(channel, (_e, ...a) => fn(...a));
+  };
+  handle('steam:info', () => ({
+    available: steam.available,
+    user: steam.user,
+    appId: steam.appId,
+    isDeck: steam.isDeck,
+    kind: steam.kind,
+  }));
+  handle('steam:unlock', (name) => steam.unlock(name));
+  handle('steam:unlocked', (name) => steam.isUnlocked(name));
+  handle('steam:all', () => steam.all());
+  handle('steam:presence', (key, value) => steam.setPresence(key, value));
+  handle('steam:clearPresence', () => steam.clearPresence());
+  handle('steam:overlay', (dialog) => steam.overlay(dialog));
+  handle('steam:cloudRead', () => steam.cloudRead());
+  handle('steam:cloudWrite', (data) => steam.cloudWrite(data));
+  handle('steam:stat', (key, value) => steam.setStat(key, value));
+}
+
 app.whenReady().then(() => {
   nativeTheme.themeSource = 'dark';
+  // Steamworks: optional. When the SDK + binding are present the desktop build gets achievements, cloud saves,
+  // rich presence and the overlay; when they are not, the game runs exactly as before (electron/steam.cjs).
+  steam.init();
+  if (steam.restarted) { app.quit(); return; }   // the Steam client is relaunching us — get out of the way
+  installSteamIpc();
   protocol.handle('app', async (req) => {
     const { pathname } = new URL(req.url);
     let file = path.normalize(path.join(ROOT, decodeURIComponent(pathname)));
@@ -161,3 +194,4 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => steam.shutdown());

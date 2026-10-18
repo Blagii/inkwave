@@ -113,6 +113,30 @@ Bot matches run headless and muted for tuning: `MAP=halyard MODE=turf SECS=180 n
 With the relay running, `npm run net-test` plays a real match between headless clients and reports what each
 screen drew (see [`docs/NET.md`](docs/NET.md#how-the-netcode-works-srcnetnetmatchjs)).
 
+## Desktop builds and Steam
+
+The desktop app is an Electron shell around the same game. It packages for all three desktop platforms:
+
+```bash
+npm run package:mac      # macOS (arm64 + x64)
+npm run package:win      # Windows (x64)
+npm run package:linux    # Linux (x64)
+npm run package          # all three
+npm run icon             # regenerate icon.ico / icon.png from the macOS .icns
+```
+
+The Windows and Linux builds can talk to the Steamworks SDK: achievements, Steam Cloud saves, rich presence and
+store statistics. It is entirely optional — without the SDK the game runs exactly as before.
+
+```bash
+npm run steam:verify     # what is in place, what is missing
+npm run steam-test       # the achievement logic, against a fake bridge
+npm run prepare:steam    # write the real app id into steam_appid.txt (INKWAVE_STEAM_APP_ID=… )
+```
+
+See [`docs/STEAM.md`](docs/STEAM.md) for the setup, the achievement list to mirror in the Steamworks backend, and
+the known gaps (Steam Deck input, lobbies).
+
 ## How it works
 
 - **Ink is painted in texture space.** Every paintable face owns a region of one 4K atlas; splats are drawn into it on the GPU while a coarse CPU grid keeps the turf score and gameplay queries in sync. The level shader layers the ink over the surface with its own height, gloss and wetness. See [`src/world/paint.js`](src/world/paint.js) and [`src/world/inkShading.js`](src/world/inkShading.js).

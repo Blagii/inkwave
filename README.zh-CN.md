@@ -112,6 +112,30 @@ npm run check-maps   # 检查每张地图布局（及其区域控制变体）
 在中继运行时，`npm run net-test` 会让多个无头客户端进行一场真实对局，并报告每个客户端绘制出了什么
 （见 [`docs/NET.md`](docs/NET.md#how-the-netcode-works-srcnetnetmatchjs)）。
 
+## 桌面版打包与 Steam
+
+桌面应用是同一款游戏的 Electron 外壳，可打包到三个桌面平台：
+
+```bash
+npm run package:mac      # macOS（arm64 + x64）
+npm run package:win      # Windows（x64）
+npm run package:linux    # Linux（x64）
+npm run package          # 三个平台全部
+npm run icon             # 从 macOS 的 .icns 生成 icon.ico / icon.png
+```
+
+Windows 与 Linux 版本可对接 Steamworks SDK：成就、Steam 云存档、富状态与商店统计。全部为可选功能——
+未安装 SDK 时游戏行为完全不变。
+
+```bash
+npm run steam:verify     # 检查已就绪与缺失的部分
+npm run steam-test       # 用模拟桥接测试成就逻辑
+npm run prepare:steam    # 把真实 App ID 写入 steam_appid.txt（INKWAVE_STEAM_APP_ID=… ）
+```
+
+配置步骤、需要在 Steamworks 后台同步的成就列表，以及尚未完成的部分（Steam Deck 输入、房间系统）见
+[`docs/STEAM.md`](docs/STEAM.md)。
+
 ## 实现原理
 
 - **墨水绘制在纹理空间。** 每个可涂面都占据一张 4K 图集上的一块区域；墨点由 GPU 绘制到图集中，同时一张粗粒度的 CPU 网格负责同步涂地比分和游戏逻辑查询。关卡着色器把墨水叠加到表面上，并带有自身的高度、光泽和湿润度。见 [`src/world/paint.js`](src/world/paint.js) 与 [`src/world/inkShading.js`](src/world/inkShading.js)。
