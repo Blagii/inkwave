@@ -1,4 +1,11 @@
-# INKWAVE — Steam integration
+# INKWAVE — Steam integration (arhivirano)
+
+> **Arhiviran dokument.** Ovo je bio plan za Electron + `steamworks-ffi-node` integraciju. Igra se sada pravi
+> u Unity-ju, a Electron je obrisan — Steamworks prelazi na `UnitySteamworks` (iste 13 dostignuća, isti Cloud
+> fajl `inkwave-save.json`). Ovaj dokument ostaje kao referenca za **spisak dostignuća** i za
+> **redosled poteza** (app id → `steam_appid.txt` → 480; bez Steama build radi isto).
+> Trenutni plan: [`docs/STEAM-PATH.md`](STEAM-PATH.md). Skripte koje su se odnosile na Electron ljusku
+> (`npm run steam:verify`, `steam-test`, `prepare:steam`, `package:*`) su uklonjene zajedno sa ljuskom.
 
 The desktop build (Electron) talks to the Steamworks SDK. The web build never does — it is a normal web page.
 Everything is optional: with no SDK installed the game runs exactly as before, just without achievements, cloud

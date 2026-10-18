@@ -2,24 +2,34 @@
 
 Datum: 2026-10-18 · repo: `Blagii/inkwave` (fork od `jaydendavisnc/inkwave`, MIT, © 2026 Jayden Davis)
 
-> **Status: odluka je promenjena (2026-10-18) — prelazimo na Unity.** Faza 0/1/2 (Electron + Steamworks) su
-> implementirane i ostaju u repou kao fallback, ali se finalni desktop build pravi u Unity-ju, a three.js i
-> Electron se izbacuju iz proizvoda. Mehanika, mape i balans ostaju isti.
-> Detalji: [`docs/UNITY-PORT.md`](UNITY-PORT.md) · (stari plan: [`docs/STEAM.md`](STEAM.md)).
+> **Status: odluka je promenjena (2026-10-18) — prelazimo na Unity, i to je sada i urađeno.**
+> Igra se pravi u Unity-ju (`unity/INKWAVE`); three.js i Electron su **izbačeni iz proizvoda** (web build,
+> Electron ljuska i three.js runtime su obrisani). Mehanika, mape i balans ostaju isti — pravila su portovana 1:1,
+> a podaci (mape, tuning, stringovi) se izvoze iz `src/` u Unity projekat, pa se build-i ne mogu razići.
+> Detalji: [`docs/UNITY-PORT.md`](UNITY-PORT.md) · (arhivirani stari plan: [`docs/STEAM.md`](STEAM.md)).
 >
 > | | |
 > |---|---|
-> | ✅ Faza 0 | `npm run package:mac` / `package:win` / `package:linux` — tri platforme, kros-platformske ikone (`build/make-icon.cjs`) |
-> | ✅ Faza 1 | Steamworks binding (`steamworks-ffi-node`), 13 dostignuća, Rich Presence, Steam Cloud, store stats, IPC most |
-> | ✅ | `npm run steam:verify` (šta nedostaje) · `npm run steam-test` (logika dostignuća) · `npm run prepare:steam` (pravi app id) |
-> | ✅ Faza 2 | Steam Deck: low preset na detekciju + Steam Input layout (trackpad + gyro → miš) — **treba test na uređaju** |
-> | ✅ | CI workflow (check + win/mac/linux packaging) + kros-platformski lookup browsera za sve headless alate |
-> | ⬜ Faza 3 | Steam lobbies / pozivi (CF relay danas radi i ostaje) |
+> | ✅ Unity port | Fizika, lik, oružja (svih 15), ink, Zone Control, botovi, supovi, specijali, zvuk, HUD |
+> | ✅ Podaci | `npm run unity:export` (mape + tuning + i18n) · `npm run unity:check` (291 čitanja konfiguracije) |
+> | ✅ CI | Unity Linux build na svakom push-u (`game-ci/unity-builder`) |
+> | ✅ Electron | obrisan (shell, build skripte, zavisnosti) |
+> | ✅ three.js | obrisan iz proizvoda (web build, `index.html`, `styles/`, `vendor/`); ostaje samo kao *build-time* alat za pečenje prop geometrije |
+> | ⬜ Steam | `UnitySteamworks`: 13 dostignuća, Cloud (`inkwave-save.json`), Rich Presence — bez Steama build radi isto |
+> | ⬜ Boss mod | HULLBREAKER još nije portovan |
+> | ⬜ Netcode | CF relay postoji; Unity klijent se još ne povezuje |
 > | ⬜ Faza 4 | Store page, demo, wishlist kampanja, $100 fee |
+---
+
 
 ---
 
-## 0. Rezime (TL;DR)
+## 0. Rezime (TL;DR) — istorijat odluke
+
+> Ispod je originalna analiza (18. 10. 2026) u kojoj je preporuka bio "zadrži three.js + Electron".
+> **Odluka je u međuvremenu promenjena**: korisnik je izabrao Unity, port je urađen, a three.js i Electron
+> su obrisani iz proizvoda. Tekst ispod se čuva kao istorijat odluke (i kao podsećanje zašto je Unity ipak
+> bio pravi izbor za ovu igru).
 
 **Ne prelazite na Unity.** Za ovaj projekat Unity nije "migracija" nego **ponovno pisanje ~100.000 linija
 JavaScript-a u C#**, i to baš onih delova koji čine igru posebnom (proceduralna geometrija, proceduralan

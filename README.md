@@ -9,23 +9,22 @@
 </p>
 
 <p align="center">
-  An original Splatoon-style 4v4 turf-war shooter that runs in your browser.<br>
+  An original Splatoon-style 4v4 turf-war shooter.<br>
   Paint the ground, swim through your ink, out-turf the other team.
 </p>
 
 <p align="center">
-  <a href="https://inkwave-aah.pages.dev"><b>▶ Play now</b></a> ·
   <a href="#controls">Controls</a> ·
-  <a href="#playing-online">Online</a> ·
   <a href="#running-locally">Run locally</a> ·
+  <a href="#the-unity-build">The Unity build</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/Blagii/inkwave/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Blagii/inkwave/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-000000?logo=three.js&logoColor=white">
-  <img alt="No build step" src="https://img.shields.io/badge/build-none%20needed-2ea44f">
+  <img alt="Unity 6" src="https://img.shields.io/badge/Unity-6000.0-000000?logo=unity&logoColor=white">
+  <img alt="URP" src="https://img.shields.io/badge/render-URP-000000">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
@@ -86,63 +85,40 @@ A page opened from `localhost` or a LAN address uses that relay automatically; `
 
 ## Running locally
 
-There is no build step. Any static file server works; the included one also serves to your LAN and sends no-cache headers so module updates are never stale.
+The game is a **Unity** project — open `unity/INKWAVE` with Unity 6000.0.40f1 (URP 17) and press Play.
+There is nothing to install first: the maps, the tuning and the strings are already inside the project.
 
 ```bash
 git clone https://github.com/jaydendavisnc/inkwave.git
 cd inkwave
-npm install      # Electron + the headless tools
-npm start        # the desktop app (Electron)
-npm run serve    # or the web version: http://localhost:8490
-npm run package  # build the macOS app into dist/ (arm64 + x64)
+npm install           # only for the data tools (three.js, for baking the props)
+npm run unity:export  # re-export the maps + the tuning from src/ into the Unity project
+npm run unity:check   # verify that every tuning number the C# reads still exists
+npm run unity:bake    # bake the prop geometry (the .glb files, a build artifact)
 ```
 
-Optional: drop your own music into `songs/` (see [`songs/README.md`](songs/README.md)); otherwise the procedural soundtrack plays.
-
-Useful URL parameters: `?map=halyard&time=dusk` picks a stage, `&autostart=180` skips the menus into a 180 s match, `&autopilot` lets a bot drive you.
+In Unity: **Tools → INKWAVE → Build Play Scene** (the scene + the materials), then Play.
+**Tools → INKWAVE → Build Linux / Windows / macOS Player** builds the standalone players.
 
 ```bash
-npm install      # once, for the headless tools
-npm run check    # syntax-check every module
-npm run smoke    # boot + 8 s of autopilot in headless Chrome, fails on console errors
-npm run build    # assemble dist/ (game + only the three.js addons it imports)
-npm run check-maps   # sanity-check every stage layout (and its Zone Control variant)
+npm run check         # syntax-check every module + the Unity data
+npm run check-maps    # sanity-check every stage layout (and its Zone Control variant)
+npm run icon          # regenerate the icons
 ```
-
-Bot matches run headless and muted for tuning: `MAP=halyard MODE=turf SECS=180 npm run botlab` (see [`tools/botlab/README.md`](tools/botlab/README.md)).
-With the relay running, `npm run net-test` plays a real match between headless clients and reports what each
-screen drew (see [`docs/NET.md`](docs/NET.md#how-the-netcode-works-srcnetnetmatchjs)).
 
 ## Desktop builds and Steam
 
-The desktop app is an Electron shell around the same game. It packages for all three desktop platforms:
+The desktop players are built from Unity (the CI builds the Linux one on every push). Steamworks moves to
+`UnitySteamworks`: the 13 achievements, the Steam Cloud save (`inkwave-save.json`), the rich presence and the
+store statistics — all of it optional, so the build runs exactly the same without Steam.
 
-```bash
-npm run package:mac      # macOS (arm64 + x64)
-npm run package:win      # Windows (x64)
-npm run package:linux    # Linux (x64)
-npm run package          # all three
-npm run icon             # regenerate icon.ico / icon.png from the macOS .icns
-```
+See [`docs/STEAM-PATH.md`](docs/STEAM-PATH.md) for the publishing plan and [`docs/UNITY-PORT.md`](docs/UNITY-PORT.md)
+for what is still missing before a release.
 
-The Windows and Linux builds can talk to the Steamworks SDK: achievements, Steam Cloud saves, rich presence and
-store statistics. It is entirely optional — without the SDK the game runs exactly as before.
+## The Unity build
 
-```bash
-npm run steam:verify     # what is in place, what is missing
-npm run steam-test       # the achievement logic, against a fake bridge
-npm run prepare:steam    # write the real app id into steam_appid.txt (INKWAVE_STEAM_APP_ID=… )
-```
-
-See [`docs/STEAM.md`](docs/STEAM.md) for the setup, the achievement list to mirror in the Steamworks backend, and
-the known gaps (Steam Deck input, lobbies).
-
-## The Unity port
-
-The desktop release is moving to **Unity** — same mechanics, same maps, same tuning; three.js and Electron are
-being replaced (Unity renders the game and ships the desktop build).
-
-The rules that keep the two builds identical:
+The game runs on **Unity** — same mechanics, same maps, same tuning. The rules that keep it identical to the
+original web build:
 
 - **The data is exported, never re-typed.** `npm run unity:export` imports the real JavaScript modules
   (`src/world/*`, `src/config.js`, `src/i18n/*`) and writes the maps, the tuning and the strings into
@@ -152,21 +128,25 @@ The rules that keep the two builds identical:
 - **`npm run unity:check`** scans the C# and verifies that every tuning number it reads still exists in the
   exported data, so a rename in `src/config.js` cannot silently change a value.
 
-See [`docs/UNITY-PORT.md`](docs/UNITY-PORT.md) for the module map, the phases and the open gaps.
+The JavaScript in `src/` is kept as the **reference implementation** — it is where the data comes from and where
+the rules are compared against. It is not part of the game any more: the web build, the Electron shell and the
+three.js runtime are gone.
 
 ## How it works
 
-- **Ink is painted in texture space.** Every paintable face owns a region of one 4K atlas; splats are drawn into it on the GPU while a coarse CPU grid keeps the turf score and gameplay queries in sync. The level shader layers the ink over the surface with its own height, gloss and wetness. See [`src/world/paint.js`](src/world/paint.js) and [`src/world/inkShading.js`](src/world/inkShading.js).
-- **Stages are data.** A layout is a list of boxes and ramps for one half of the arena; the other half is the 180° rotation, so both teams always get an identical field. Ambient occlusion is baked offline (`tools/bake-ao.mjs`). See [`src/world/maps.js`](src/world/maps.js).
-- **Characters are fully procedural.** Geometry, materials, a 60-bone rig and every animation (locomotion, squid form, weapon poses, secondary motion) are code, driven by a spring-based pose system. See [`docs/RIG.md`](docs/RIG.md).
-- **Systems talk through events.** Weapons, actors and the match emit typed events; effects, HUD and audio subscribe. The contract is documented in [`docs/EVENTS.md`](docs/EVENTS.md) and [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
-- **Deterministic tooling.** The game exposes a freeze/step debug interface so filmstrips, handling measurements and bot simulations are reproducible frame by frame (`tools/film.py`, `tools/measure-handling.mjs`).
-
-Rendering is three.js r186 (vendored, plain ES modules with an import map) with GTAO, bloom and a custom grade pass.
-
-## Browser support
-
-Chrome and Edge are the target; Firefox works. Safari runs but is slower. A discrete or recent integrated GPU is recommended for the High preset; the settings menu has Medium and Low tiers.
+- **Ink is painted in texture space.** Every paintable face owns a region of one atlas; the splats are drawn into
+  it on the GPU while a coarse CPU grid keeps the turf score and the gameplay queries in sync. The level shader
+  layers the ink over the surface with its own height, gloss and wetness. See
+  `unity/INKWAVE/Assets/INKWAVE/Scripts/Gameplay/PaintSystem.cs` and `Shaders/InkSurface.shader`.
+- **Stages are data.** A layout is a list of boxes and ramps for one half of the arena; the other half is the 180°
+  rotation, so both teams always get an identical field. See `unity/INKWAVE/Assets/INKWAVE/Scripts/World/Level.cs`.
+- **Characters are procedural.** The squid kid is built from code (body, head, eyes that follow the aim, arms,
+  legs, the ink tank, the tentacles) and the squid form swaps in when you dive. See
+  `unity/INKWAVE/Assets/INKWAVE/Scripts/Render/ActorRenderer.cs`.
+- **The sound is procedural.** A small synth renders the effects at runtime (a pitch-swept tone, a filtered noise
+  burst, a bubble) — no audio files. See `unity/INKWAVE/Assets/INKWAVE/Scripts/Audio/AudioSystem.cs`.
+- **Systems talk through events.** Weapons, actors and the match emit typed events; the HUD, the audio and the
+  effects subscribe.
 
 ## Languages
 

@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The game itself: syntax, the map layouts, the Steam integration logic and the web build.
+  # The data and the sources: the syntax of the reference simulation, the map layouts and the exported Unity data.
   check:
     name: check (linux)
     runs-on: ubuntu-latest
@@ -23,62 +23,38 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run check-maps
-      - run: npm run steam-test
-      - run: npm run build
-      - name: the web build boots
-        run: |
-          python3 -m http.server 8490 --directory dist &
-          sleep 2
-          node tools/play.mjs "http://localhost:8490/?autostart=60&autopilot&shadercheck" '[{"until":"window.__inkwave && __inkwave.match && __inkwave.match.state===\"playing\" && __inkwave.match.local"},{"wait":8000},{"eval":"JSON.stringify({state:__inkwave.match.state,fps:__inkwave.fps})","log":"smoke"}]' --w 960 --h 540 --timeout 420
-      - uses: actions/upload-artifact@v4
-        with:
-          name: inkwave-web
-          path: dist/
 
-  # The Windows build — the one Steam ships first.
-  package-win:
-    name: package windows
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-      - run: npm run package:win
-      - uses: actions/upload-artifact@v4
-        with:
-          name: inkwave-win32
-          path: dist/INKWAVE-win32-x64/
-
-  # The macOS build.
-  package-mac:
-    name: package macos
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-      - run: npm run package:mac
-      - uses: actions/upload-artifact@v4
-        with:
-          name: inkwave-darwin
-          path: dist/INKWAVE-darwin-*/
-
-  # The Linux build (also what SteamOS runs natively).
-  package-linux:
-    name: package linux
+  # The Unity player (Linux) — the game itself.
+  unity:
+    name: unity build (linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run package:linux
+      - name: the exported data is in sync with the source
+        run: |
+          npm run -s unity:export
+          git diff --exit-code unity/INKWAVE/Assets/Resources/INKWAVE || (echo "the exported data is stale — run npm run unity:export" && exit 1)
+      - name: the prop geometry
+        run: npm run -s unity:bake
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: StandaloneLinux64
+          unityVersion: 6000.0.40f1
+          projectPath: unity/INKWAVE
+          buildMethod: INKWAVE.Editor.INKWAVESetup.BuildLinuxPlayer
+          args: -projectPath unity/INKWAVE -buildTarget StandaloneLinux64 -executeMethod INKWAVE.Editor.INKWAVESetup.BuildLinuxPlayer
+          buildName: INKWAVE-linux
       - uses: actions/upload-artifact@v4
         with:
           name: inkwave-linux
-          path: dist/INKWAVE-linux-x64/
+          path: unity/INKWAVE/Build/Linux/INKWAVE-linux

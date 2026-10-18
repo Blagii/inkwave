@@ -8,7 +8,7 @@ into glTF:
 npm run unity:bake        # → this folder: <stage>-<mode>.glb
 ```
 
-The `.glb` files are build artifacts and are **not committed** (like the music in `songs/`). Run the bake once
+The `.glb` files are build artifacts and are **not committed**. Run the bake once
 before opening the project, then `Tools → INKWAVE → Build Prop Prefabs` to turn them into prefabs the game loads.
 
 The colliders the props contribute to the level are **not** baked — they come from `npm run unity:export`, which

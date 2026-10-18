@@ -157,5 +157,34 @@ namespace INKWAVE.EDITOR
             EditorSceneManager.SaveScene(scene, ScenePath);
             Debug.Log($"[inkwave] the scene is ready: {ScenePath}");
         }
+
+        // --------------------------------------------------------------------------------- the player builds
+        [MenuItem("Tools/INKWAVE/Build Linux Player")]
+        public static void BuildLinuxPlayer() => BuildPlayer(BuildTarget.StandaloneLinux64, "INKWAVE-linux");
+
+        [MenuItem("Tools/INKWAVE/Build Windows Player")]
+        public static void BuildWindowsPlayer() => BuildPlayer(BuildTarget.StandaloneWindows64, "INKWAVE-win64");
+
+        [MenuItem("Tools/INKWAVE/Build macOS Player")]
+        public static void BuildMacPlayer() => BuildPlayer(BuildTarget.StandaloneOSX, "INKWAVE-mac");
+
+        /// Build a standalone player (the CI calls BuildLinuxPlayer).
+        public static void BuildPlayer(BuildTarget target, string name)
+        {
+            BuildMaterials();
+            BuildScene();
+            var dir = Path.Combine(Directory.GetCurrentDirectory(), "Build", target.ToString());
+            Directory.CreateDirectory(dir);
+            var opts = new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = Path.Combine(dir, name),
+                target = target,
+                options = BuildOptions.None,
+            };
+            var report = BuildPipeline.BuildPlayer(opts);
+            Debug.Log($"[inkwave] the player is built: {report.summary.outputPath} ({report.summary.result}, " +
+                      $"{report.summary.totalSize / (1024 * 1024)} MB)");
+        }
     }
 }

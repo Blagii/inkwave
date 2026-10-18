@@ -6,6 +6,11 @@ Datum: 2026-10-18 · repo: `Blagii/inkwave` · Unity projekat: `unity/INKWAVE/`
 > se izbacuju** iz proizvoda. Unity zamenjuje renderer (i renderuje mapu), a desktop ljusku zamenjuje Unity
 > build + Steamworks.
 >
+> **Stanje 2026-10-18 (kraj dana):** port je gotov do nivoa „igra se može igrati" — sve 15 oružja, Zone Control,
+> botovi, supovi, specijali, zvuk i HUD su u C#. **Electron je obrisan iz repozitorijuma**, a web build i
+> three.js runtime sa njim. `src/` ostaje kao *referentna implementacija* (izvor podataka za export i poređenje
+> pravila) — nije deo build-a. Kad se port završi i podaci se zamrznu, i `src/` ide.
+>
 > Ovaj dokument je živi plan porta: šta je prebačeno, kako se obe verzije drže u sync-u i šta još fali.
 
 ---
@@ -79,7 +84,7 @@ dopisuje te kutije u `stages.json` kao `hidden` blokove — pa se arena u Unity-
 **Geometrija propova se bake-uje u glTF.** Propovi su proceduralni (≈3000 postavljanja, 6.1M trouglova za turf),
 pa ih Unity ne može da izgeneriše: `npm run unity:bake` ih bake-uje u `unity/INKWAVE/Assets/INKWAVE/Props/*.glb`
 (KHR_mesh_quantization, vertex boje nose paletu i ugrađeni AO). `.glb` fajlovi su **build artefakti i nisu u
-repo-u** (kao muzika u `songs/`) — tool je u repou, bake se radi lokalno, pa
+repo-u** — tool je u repou, bake se radi lokalno, pa
 `Tools → INKWAVE → Build Prop Prefabs` napravi prefabe koje igra učitava.
 
 Exporter već primenjuje **mirror** (`half` → 180° oko Y, kao `src/world/level.js → mirrorDef`) i **filter po
@@ -168,7 +173,8 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 | 2 | Likovi (detalji) | Karakter je proceduralan, ali bez lica / frizure / outfita | Port character-geo/mats/outfit ili novi modeli |
 | 3 | Oružja: bucket/brush/brolly/bow/blade/mitts | ✅ portovano (mehanika) | Grafike (modeli, tragovi) još nisu portovane |
 | 4 | Bot AI (2088 linija) | Botovi su slabiji od weba | Port `BotBrain` (navigacija, threat AI, super jump) |
-| 5 | Boss mod (HULLBREAKER) | Nije u portu | `src/game/specials.js` / boss kod |
+| 5 | Boss mod (HULLBREAKER) | Nije u portu | `src/boss/*` (model, faze, napadi) |
+| 9 | three.js / Electron u proizvodu | ✅ obrisano (web build, `index.html`, `styles/`, `vendor/`, `electron/`) | `src/` ostaje samo kao referenca (build-time alat za prop bake) |
 | 6 | Super jump / wall climb / specijali | Nisu u portu | `actor.js` (`_updateClimb`, `_updateSuperJump`), `specials.js` |
 | 7 | Proceduralni zvuk | Nema zvuka | Unity audio + port `src/audio/*` |
 | 8 | C# kompilacija | Sandbox nema Unity/kompajler | `npm run unity:check` pokriva podatke; kompilacija se radi lokalno |

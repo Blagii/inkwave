@@ -1,48 +1,26 @@
 {
   "name": "inkwave",
   "productName": "INKWAVE",
-  "version": "1.1.0",
-  "description": "An original Splatoon-style 4v4 turf-war shooter for the browser, built on three.js.",
-  "main": "electron/main.cjs",
+  "version": "2.0.0",
+  "description": "INKWAVE — an original 4v4 ink shooter. The game is the Unity build in unity/INKWAVE.",
   "scripts": {
-    "start": "electron .",
-    "serve": "python3 tools/serve.py 8490",
-    "check": "for f in $(find src electron build tools server/src -name '*.js' -o -name '*.mjs' -o -name '*.cjs'); do node --check \"$f\" || exit 1; done && echo 'syntax ok' && npm run -s unity:check",
-    "package": "npm run -s package:mac && npm run -s package:win && npm run -s package:linux",
-    "package:mac": "electron-packager . INKWAVE --platform=darwin --arch=arm64,x64 --icon=build/icon.icns --app-bundle-id=local.inkwave.game --app-category-type=public.app-category.action-games --extend-info=build/extend-info.plist --darwin-dark-mode-support --asar.unpack=\"{**/{.**,**}/**/*.{node,dll,so,dylib},**/songs/**,**/steamworks_sdk/**}\" --out=dist --overwrite --ignore=\"^/(dist|build|node_modules|docs|tools|server|\\.botlab)(/|$)\" --ignore=\"\\.DS_Store$\" && npm run -s deck:copy",
-    "package:win": "electron-packager . INKWAVE --platform=win32 --arch=x64 --icon=build/icon.ico --app-bundle-id=local.inkwave.game --app-category-type=public.app-category.action-games --asar.unpack=\"{**/{.**,**}/**/*.{node,dll,so,dylib},**/songs/**,**/steamworks_sdk/**}\" --out=dist --overwrite --ignore=\"^/(dist|build|node_modules|docs|tools|server|\\.botlab)(/|$)\" --ignore=\"\\.DS_Store$\" && npm run -s deck:copy",
-    "package:linux": "electron-packager . INKWAVE --platform=linux --arch=x64 --icon=build/icon.png --app-bundle-id=local.inkwave.game --app-category-type=public.app-category.action-games --asar.unpack=\"{**/{.**,**}/**/*.{node,dll,so,dylib},**/songs/**,**/steamworks_sdk/**}\" --out=dist --overwrite --ignore=\"^/(dist|build|node_modules|docs|tools|server|\\.botlab)(/|$)\" --ignore=\"\\.DS_Store$\" && npm run -s deck:copy",
-    "music": "node build/music-manifest.mjs",
-    "prestart": "npm run -s music",
-    "prepackage": "npm run -s check && npm run -s music",
-    "bake": "electron build/bake-ao.cjs",
+    "check": "for f in $(find src build tools server/src -name '*.js' -o -name '*.mjs' -o -name '*.cjs'); do node --check \"$f\" || exit 1; done && echo 'syntax ok' && npm run -s unity:check",
     "check-maps": "node build/check-maps.mjs",
     "icon": "node build/make-icon.cjs",
     "icon:mac": "sh build/make-icon.sh",
-    "botlab": "tools/botlab/run.sh tools/botlab/match.cjs",
-    "smoke": "./tools/smoke.sh",
-    "net-test": "node tools/net-test.mjs",
-    "steam-test": "node tools/steam-test.mjs",
-    "build": "python3 tools/build-dist.py",
-    "release": "./tools/release-pages.sh",
-    "deploy-relay": "cd server && wrangler deploy",
     "relay": "cd server && wrangler dev --ip 0.0.0.0 --port 8787",
-    "steam:verify": "node build/verify-steam.cjs",
-    "prepare:steam": "node build/prepare-steam.cjs",
-    "package:steam": "npm run -s prepare:steam && npm run -s package",
-    "deck:copy": "node build/copy-deck-configs.mjs",
+    "deploy-relay": "cd server && wrangler deploy",
     "unity:export": "node tools/unity-export/export-data.mjs",
     "unity:check": "node tools/unity-export/check-data.mjs",
     "unity:bake": "node tools/unity-export/bake-props.mjs"
   },
   "keywords": [
     "game",
-    "three.js",
-    "webgl",
+    "unity",
     "shooter",
     "splatoon",
     "turf-war",
-    "browser-game"
+    "ink"
   ],
   "author": "Jayden Davis",
   "license": "MIT",
@@ -56,13 +34,7 @@
     "url": "https://github.com/jaydendavisnc/inkwave/issues"
   },
   "dependencies": {},
-  "optionalDependencies": {
-    "steamworks-ffi-node": "^0.11.3"
-  },
   "devDependencies": {
-    "@electron/packager": "^20.3.0",
-    "electron": "^44.4.5",
-    "puppeteer-core": "^25.12.0",
     "three": "^0.186.0",
     "wrangler": "^4.141.0"
   }
