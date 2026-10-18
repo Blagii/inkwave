@@ -130,6 +130,7 @@ namespace INKWAVE.Gameplay
                 case "bucket": Bucket(dt, fire, firePressed, w); break;
                 case "brush": Brush(dt, fire, firePressed, w); break;
                 case "brolly": BrollyUpdate(dt, fire, w); break;
+                case "blade": BladeUpdate(dt, fire, firePressed, w); break;
                 case "charger": Charger(dt, fire, w); break;
                 default: Auto(dt, fire, w); break;
             }
@@ -698,6 +699,8 @@ namespace INKWAVE.Gameplay
 
         static readonly Volley[] _vols = { new Volley(), new Volley(), new Volley(), new Volley() };
         static int _volI;
+        public static Volley NewVolley() => NextVolley();
+
         static Volley NextVolley()
         {
             var v = _vols[_volI = (_volI + 1) % _vols.Length];
