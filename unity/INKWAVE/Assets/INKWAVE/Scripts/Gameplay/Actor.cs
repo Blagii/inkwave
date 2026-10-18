@@ -60,6 +60,10 @@ namespace INKWAVE.Gameplay
         public float Hp = 100f;
         public float Ink = 100f;
         public float Special = 0f;
+        public bool SpecialActive;        // a special is running
+        public bool Kraken;               // the kraken form
+        public float KrakenCd;
+        public bool Jet;                  // the ink jet
         public ActorForm Form = ActorForm.Kid;
         public bool Submerged, Climbing, Grounded;
         public int GroundTeam;         // 0 none, 1 own, 2 enemy
@@ -228,6 +232,7 @@ namespace INKWAVE.Gameplay
             bool jumpPressed = Intent.Jump && !_prevJump;
             bool subReleased = !Intent.Sub && _prevSub;
             bool specialPressed = Intent.Special && !_prevSpecial;
+            if (specialPressed && SpecialReady() && !SpecialActive) SpecialSystem.Use(this);
             if (Intent.Squid && !_prevSquid) _squidPressT = GameContext.Time;
             if (firePressed) _firePressT = GameContext.Time;
             _prevFire = Intent.Fire; _prevJump = Intent.Jump; _prevSub = Intent.Sub;

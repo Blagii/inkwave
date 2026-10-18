@@ -99,6 +99,8 @@ namespace INKWAVE.Core
             BladeWaves.Tick(dt);
             BowArrows.Tick(dt);
             MittFists.Tick(dt);
+            SubSystem.Tick(dt);
+            SpecialSystem.Tick(dt);
         }
     }
 }

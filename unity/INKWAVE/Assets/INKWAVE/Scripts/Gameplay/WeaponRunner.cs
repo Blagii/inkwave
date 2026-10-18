@@ -153,7 +153,9 @@ namespace INKWAVE.Gameplay
                 {
                     A.Ink -= cost;
                     A.LastFire = 0f;
-                    Projectiles.ThrowBomb(A);
+                    var subDef = A.Sub;
+                    if (subDef != null && SubSystem.Supported(subDef.Str("kind"))) SubSystem.Use(A, subDef);
+                    else Projectiles.ThrowBomb(A);
                 }
             }
             if (!sub && !subReleased) AimingSub = false;
@@ -271,6 +273,16 @@ namespace INKWAVE.Gameplay
         }
 
         /// The direction from the muzzle toward the actor's aim point.
+        /// The velocity of a thrown sub (the web build's throwVelocity).
+        public static Vector3 ThrowVelocity(Actor a, float speed)
+        {
+            float pitch = Mathf.Clamp(a.AimPitch + 0.28f, -0.3f, 1.1f);
+            float cp = Mathf.Cos(pitch);
+            return new Vector3(Mathf.Sin(a.AimYaw) * cp * speed + a.Vel.x * 0.4f,
+                               Mathf.Sin(pitch) * speed + 1.5f,
+                               Mathf.Cos(a.AimYaw) * cp * speed + a.Vel.z * 0.4f);
+        }
+
         public static Vector3 AimFrom(Actor a, Vector3 from, out Vector3 out)
         {
             out = a.AimPoint - from;
