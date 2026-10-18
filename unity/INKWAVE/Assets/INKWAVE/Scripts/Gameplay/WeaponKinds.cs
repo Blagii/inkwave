@@ -383,6 +383,7 @@ namespace INKWAVE.Gameplay
             string kind = A.Weapon.Str("kind");
             if (kind == "twins") return TwinDodge(move);
             if (kind == "dualies") return DualDodge(move);
+            if (kind == "mitts") return MittsJump(move);   // the mitts take the jump: it charges the leap
             return false;
         }
 

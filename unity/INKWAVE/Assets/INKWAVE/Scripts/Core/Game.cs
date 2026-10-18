@@ -97,6 +97,8 @@ namespace INKWAVE.Core
             Projectiles.Update(dt);
             if (GameContext.Paint != null) GameContext.Paint.StepFloods(dt);
             BladeWaves.Tick(dt);
+            BowArrows.Tick(dt);
+            MittFists.Tick(dt);
         }
     }
 }

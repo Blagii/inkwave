@@ -189,6 +189,8 @@ namespace INKWAVE.Gameplay
         public void Damage(float amount, Actor attacker, string source = "weapon")
         {
             if (!Alive || Invuln > 0f) return;
+            // the sponge mitts: the gloves up soak part of a hit that comes from the front
+            if (Weapons != null) amount *= Weapons.GuardScale(attacker);
             Hp -= amount;
             LastDamage = 0f;
             LastAttacker = attacker;

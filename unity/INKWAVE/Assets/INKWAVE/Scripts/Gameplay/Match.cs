@@ -54,6 +54,9 @@ namespace INKWAVE.Gameplay
             Zones = null;
             Canopies.Clear();
             Projectiles.Clear();
+            BladeWaves.Clear();
+            BowArrows.Clear();
+            MittFists.Clear();
 
             var cfg = GameData.Config;
             int teamSize = cfg.match.Int("teamSize", 4);

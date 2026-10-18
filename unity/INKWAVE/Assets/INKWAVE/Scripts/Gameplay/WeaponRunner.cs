@@ -131,6 +131,8 @@ namespace INKWAVE.Gameplay
                 case "brush": Brush(dt, fire, firePressed, w); break;
                 case "brolly": BrollyUpdate(dt, fire, w); break;
                 case "blade": BladeUpdate(dt, fire, firePressed, w); break;
+                case "bow": BowUpdate(dt, fire, firePressed, w); break;
+                case "mitts": MittsUpdate(dt, fire, firePressed, w); break;
                 case "charger": Charger(dt, fire, w); break;
                 default: Auto(dt, fire, w); break;
             }

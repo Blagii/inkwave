@@ -118,6 +118,12 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 | **spinner** | punjenje → **burst** (brzina/domet zavise od napunjenosti) |
 | **slosher** | zamah → **talas** (lob preko prepreka, 8 kapi, vodeći kapi nosi štetu, mrlja se sliježi u traku) |
 | **splatling** | zupčanje → **struja** metaka (dužina zavisi od napunjenosti) |
+| **bucket** | zamah → **zamena** (loptice se bacaju u luku; prva pogađa nišan) |
+| **brush** | trzaj side-to-side → **prskavica**; trčanje → **trag** koji pravi put i udara |
+| **brolly** | **prskavica** 11 peleta (kupa) + **kišobran** koji se otvara kao štit |
+| **blade** | brzi rez + **talas** boje (napunjeni rez) |
+| **bow** | napeti → **tri strelice** (ležište / vazduh), zabodene streлиće eksplodiraju |
+| **mitts** | **šake** koje prskaju + **skok** (naboj) + **štit** koji upija udarce sfronta |
 
 Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čitanja), pa je osećaj isti kao u webu.
 
@@ -160,7 +166,7 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 |---|---|---|---|
 | 1 | Prop teksture (natpisi, ograda) | Propovi su bez štampa i ograda | Canvas atlas u Unity-ju (UI Toolkit / proceduran) |
 | 2 | Likovi (detalji) | Karakter je proceduralan, ali bez lica / frizure / outfita | Port character-geo/mats/outfit ili novi modeli |
-| 3 | Oružja: bucket/brush/brolly/bow/blade/mitts | Ponašanje ≠ web build | Port `_bucket`/`_brush`/`_brolly`/`_bow`/`_blade`/`_mitts` iz `weapons.js` po vrsti |
+| 3 | Oružja: bucket/brush/brolly/bow/blade/mitts | ✅ portovano (mehanika) | Grafike (modeli, tragovi) još nisu portovane |
 | 4 | Bot AI (2088 linija) | Botovi su slabiji od weba | Port `BotBrain` (navigacija, threat AI, super jump) |
 | 5 | Boss mod (HULLBREAKER) | Nije u portu | `src/game/specials.js` / boss kod |
 | 6 | Super jump / wall climb / specijali | Nisu u portu | `actor.js` (`_updateClimb`, `_updateSuperJump`), `specials.js` |
