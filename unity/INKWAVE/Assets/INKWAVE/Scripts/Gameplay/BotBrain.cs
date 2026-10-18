@@ -15,6 +15,7 @@
 using System.Collections.Generic;
 using INKWAVE.Core;
 using INKWAVE.Data;
+using INKWAVE.World;
 using UnityEngine;
 
 namespace INKWAVE.Gameplay

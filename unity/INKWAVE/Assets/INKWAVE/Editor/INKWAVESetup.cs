@@ -4,6 +4,7 @@
 //   Tools → INKWAVE → Build Materials       (the ink surface + the splat material)
 using System.IO;
 using INKWAVE.Core;
+using INKWAVE.Gameplay;
 using INKWAVE.Inputs;
 using INKWAVE.Render;
 using UnityEditor;
