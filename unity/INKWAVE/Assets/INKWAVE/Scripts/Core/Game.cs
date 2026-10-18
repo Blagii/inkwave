@@ -95,6 +95,7 @@ namespace INKWAVE.Core
 
             _match.Update(dt);
             Projectiles.Update(dt);
+            if (GameContext.Paint != null) GameContext.Paint.StepFloods(dt);
         }
     }
 }

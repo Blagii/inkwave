@@ -34,7 +34,7 @@ namespace INKWAVE.Render
             var ink = Local.Ink / 100f;
 
             // ---- the score + the timer (top centre)
-            var counts = Match.TurfCounts();
+            var counts = Match.Scores();
             string clock = FormatTime(Match.Time);
             _center.fontSize = Mathf.Max(18, (int)(h * 0.045f));
             GUI.Label(new Rect(0f, h * 0.02f, w, h * 0.07f), clock, _center);
@@ -43,6 +43,17 @@ namespace INKWAVE.Render
             _big.fontSize = Mathf.Max(16, (int)(h * 0.04f));
             GUI.Label(new Rect(w * 0.5f - scoreW * 1.6f, h * 0.085f, scoreW, h * 0.06f), counts[0].ToString(), _label);
             GUI.Label(new Rect(w * 0.5f + scoreW * 0.6f, h * 0.085f, scoreW, h * 0.06f), counts[1].ToString(), _label);
+
+            // ---- Zone Control: who holds the live objective
+            if (Match.Zones != null)
+            {
+                var z = Match.Zones;
+                _label.alignment = TextAnchor.MiddleCenter;
+                string who = z.Owner < 0 ? "CONTESTED" : z.Owner == Local.Team ? "WE HOLD" : "ENEMY HOLDS";
+                GUI.Label(new Rect(w * 0.5f - w * 0.2f, h * 0.145f, w * 0.4f, h * 0.05f),
+                          $"{z.Active.Id.ToUpperInvariant()} · {who}", _label);
+                _label.alignment = TextAnchor.MiddleLeft;
+            }
 
             // ---- the ink meter (bottom left)
             float barW = w * 0.22f, barH = h * 0.028f;

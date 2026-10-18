@@ -26,6 +26,7 @@ namespace INKWAVE.Core
         public static float DeltaTime = 1f / 60f;
         public static string StageId = "tidewater";
         public static string ModeId = "turf";
+        public static Data.ZoneLayout StageZones;   // the zone layout of the loaded stage (Zone Control)
 
         static readonly Dictionary<string, Action<object>> _handlers = new Dictionary<string, Action<object>>();
 
@@ -56,6 +57,7 @@ namespace INKWAVE.Core
             var lvl = Level;
             if (lvl == null) { lvl = new Level(); Level = lvl; }
             lvl.Build(stage, stage.modes.TryGetValue(modeId, out var mode) ? mode : stage.modes["turf"]);
+            StageZones = stage.zones;
             Physics = new Physics(lvl);
             Paint = new Gameplay.PaintSystem(lvl, Physics);
             Debug.Log($"[inkwave] stage '{stageId}' ({modeId}): {lvl.Blocks.Count} blocks · {lvl.Faces.Count} faces");

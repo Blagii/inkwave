@@ -121,6 +121,18 @@ mapa je u Unity-u. Nema ručnog prepisivanja.
 
 Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čitanja), pa je osećaj isti kao u webu.
 
+### ✅ Faza U2.5 — Zone Control (drugi mod)
+
+`ZoneControl.cs` je port `src/game/zones.js`:
+
+- zone iz stage layout-a (centar + po jedna strana za svaki tim, Bravo je ogledalo Alfe)
+- ubezanje: ≥ 80 % zone pobojane; držana zona se neutrališe na 40 %
+- odbrojavanje 100 → 0: centar 1 pt/s, svoja strana 1 pt/2 s, tuđa strana 1 pt/0.5 s
+- kazna za gubitak objekta: ROUND(0.75 × (start − end)) + 1
+- rotacija objekta svakih 30–60 s; poslednjih 30 s (i overtime) samo centar
+- prelivanje boje po zoni pri preuzimanju (front iz centra), brisanje zone kad postane live
+- botovi prvo idu na live zonu; HUD pokazuje broj i ko drži objekat
+
 ### ◐ Faza U2 — Rendering i sadržaj (u toku)
 - ✅ Level mesh iz blokova (svaka farba ima UV u ink atlasu).
 - ✅ `InkSplat.shader` (URP) + `InkSurface.shader` (URP) + `VertexColorLit.shader` (propovi).
@@ -149,8 +161,8 @@ Sve brojne vrednosti se čitaju iz izvezenog `config.json` (161 proverenih čita
 | 1 | Prop teksture (natpisi, ograda) | Propovi su bez štampa i ograda | Canvas atlas u Unity-ju (UI Toolkit / proceduran) |
 | 2 | Likovi (detalji) | Karakter je proceduralan, ali bez lica / frizure / outfita | Port character-geo/mats/outfit ili novi modeli |
 | 3 | Oružja: bucket/brush/brolly/bow/blade/mitts | Ponašanje ≠ web build | Port `_bucket`/`_brush`/`_brolly`/`_bow`/`_blade`/`_mitts` iz `weapons.js` po vrsti |
-| 4 | Bot AI (2088 linija) | Botovi su slabiji | Port `BotBrain` (navigacija, farbanje ink-a, sub tajming) |
-| 5 | Zone Control + Boss mod | Nisu u portu | `src/game/zones.js`, `src/boss/*` |
+| 4 | Bot AI (2088 linija) | Botovi su slabiji od weba | Port `BotBrain` (navigacija, threat AI, super jump) |
+| 5 | Boss mod (HULLBREAKER) | Nije u portu | `src/game/specials.js` / boss kod |
 | 6 | Super jump / wall climb / specijali | Nisu u portu | `actor.js` (`_updateClimb`, `_updateSuperJump`), `specials.js` |
 | 7 | Proceduralni zvuk | Nema zvuka | Unity audio + port `src/audio/*` |
 | 8 | C# kompilacija | Sandbox nema Unity/kompajler | `npm run unity:check` pokriva podatke; kompilacija se radi lokalno |

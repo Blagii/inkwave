@@ -16,6 +16,7 @@ namespace INKWAVE.Gameplay
         public float[] Coverage;
         public int Winner;
         public string Mode = "turf";
+        public string Reason;             // the Zone Control reason (knockout / time / retake …)
     }
 
     public class Match
@@ -30,6 +31,7 @@ namespace INKWAVE.Gameplay
         public bool Attract, Practice;
         public string Mode = "turf";
         public MatchResult Result;
+        public ZoneControl Zones;          // the Zone Control rules (the "zones" mode)
         public readonly List<(float t, Actor victim, Actor attacker, string cause)> Events =
             new List<(float, Actor, Actor, string)>();
 
@@ -49,6 +51,7 @@ namespace INKWAVE.Gameplay
             Time = Duration;
             State = MatchState.Init;
             Actors.Clear();
+            Zones = null;
 
             var cfg = GameData.Config;
             int teamSize = cfg.match.Int("teamSize", 4);
@@ -81,6 +84,9 @@ namespace INKWAVE.Gameplay
                           a.Team == 0 ? 0f : Mathf.PI);
                 a.Invuln = 0f;
             }
+            // Zone Control: the rules engine (the stage's zones, the countdown, the rotations)
+            if (Mode == "zones") Zones = new ZoneControl(this);
+
             GameContext.Match = this;
         }
 
@@ -121,7 +127,18 @@ namespace INKWAVE.Gameplay
                         _lastCount = c;
                         GameContext.Emit("match:count", new Dictionary<string, object> { { "n", c } });
                     }
-                    if (Time <= 0f) { Time = 0f; SetState(MatchState.Finish); }
+                    if (Zones != null)
+                    {
+                        Zones.Update(dt);
+                        if (Time <= 0f)
+                        {
+                            Time = 0f;
+                            // the zones engine decides: it may call the overtime instead of ending the match
+                            if (!Zones.TimeUp()) { _lastCount = 0; }
+                            else SetState(MatchState.Finish);
+                        }
+                    }
+                    else if (Time <= 0f) { Time = 0f; SetState(MatchState.Finish); }
                     break;
                 }
                 case MatchState.Finish:
@@ -167,12 +184,27 @@ namespace INKWAVE.Gameplay
         void Judge()
         {
             var cov = GameContext.Paint.Coverage();
-            int win = Mathf.Approximately(cov[0], cov[1]) ? (UnityEngine.Random.value < 0.5f ? 0 : 1) : (cov[0] > cov[1] ? 0 : 1);
-            Result = new MatchResult { Coverage = cov, Winner = win, Mode = Mode };
+            int win;
+            string reason = null;
+            if (Zones != null && Zones.Winner >= 0)
+            {
+                // Zone Control: the count decides (the lower count is ahead and wins)
+                win = Zones.Winner;
+                reason = Zones.Reason;
+            }
+            else win = Mathf.Approximately(cov[0], cov[1]) ? (UnityEngine.Random.value < 0.5f ? 0 : 1) : (cov[0] > cov[1] ? 0 : 1);
+            Result = new MatchResult { Coverage = cov, Winner = win, Mode = Mode, Reason = reason };
             SetState(MatchState.Judge);
         }
 
         /// The live turf score (the number the HUD shows).
         public int[] TurfCounts() => new[] { GameContext.Paint.TurfCount(0), GameContext.Paint.TurfCount(1) };
+
+        /// The score the HUD shows: the turf in Turf War, the countdown in Zone Control.
+        public float[] Scores()
+        {
+            if (Zones != null) return new[] { Mathf.CeilToInt(Zones.Count[0]), Mathf.CeilToInt(Zones.Count[1]) };
+            return new[] { (float)TurfCounts()[0], (float)TurfCounts()[1] };
+        }
     }
 }

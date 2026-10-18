@@ -146,6 +146,114 @@ namespace INKWAVE.Gameplay
 
         public int TurfTotal => _turfTotal;
 
+        // --------------------------------------------------------------------------------- region floods
+        // Zone Control: taking a zone floods it with the taker's ink (a front running out from the zone's centre),
+        // and a newly operational zone is wiped back to bare floor. The gameplay grid flips as the front passes.
+        public class Flood
+        {
+            public int[] Cells;
+            public float[] Dist;
+            public int Team;        // -1 = wipe
+            public float T, Dur, Reach;
+            public int Index;
+            public bool Linear;
+        }
+        readonly List<Flood> _floods = new List<Flood>();
+
+        /// Ink (or wipe) a whole region. `cells` are the paint-grid indices of the region.
+        public void FloodRegion(List<int> cells, int team, Vector3 center, float reach, float dur, bool linear)
+        {
+            if (cells == null || cells.Count == 0) return;
+            var f = new Flood
+            {
+                Team = team,
+                Dur = Mathf.Max(0f, dur),
+                Reach = Mathf.Max(0.1f, reach),
+                Linear = linear,
+            };
+            var live = new List<int>(cells.Count);
+            var dist = new List<float>(cells.Count);
+            for (int i = 0; i < cells.Count; i++)
+            {
+                int k = cells[i];
+                if (k < 0 || k >= Grid.Length) continue;
+                if (_dead[k] != 0) continue;                       // the buried cells do not count
+                Vector3 p;
+                if (!CellWorld(k, out p)) continue;
+                live.Add(k);
+                dist.Add(new Vector2(p.x - center.x, p.z - center.z).magnitude);
+            }
+            f.Cells = live.ToArray();
+            f.Dist = dist.ToArray();
+            // the front starts at the centre: the cells in the order they are reached
+            var order = new int[f.Cells.Length];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            Array.Sort(order, (a, b) => f.Dist[a].CompareTo(f.Dist[b]));
+            var cellsOut = new int[order.Length];
+            var distOut = new float[order.Length];
+            for (int i = 0; i < order.Length; i++) { cellsOut[i] = f.Cells[order[i]]; distOut[i] = f.Dist[order[i]]; }
+            f.Cells = cellsOut; f.Dist = distOut;
+            _floods.Add(f);
+        }
+
+        /// The face a paint-grid cell belongs to (-1 when there is none).
+        public int CellFaceId(int k)
+        {
+            int lo = 0, hi = _paintFaces.Count - 1, face = -1;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) >> 1;
+                if (_paintFaces[mid].Grid <= k) { face = mid; lo = mid + 1; }
+                else hi = mid - 1;
+            }
+            if (face < 0) return -1;
+            var f = _paintFaces[face];
+            int l = k - f.Grid;
+            return (l < 0 || l >= f.Nu * f.Nv) ? -1 : f.Id;
+        }
+
+        /// The world position of a paint-grid cell.
+        public bool CellWorld(int k, out Vector3 p)
+        {
+            p = Vector3.zero;
+            int face = CellFaceId(k);
+            if (face < 0) return false;
+            var f = _level.Faces[face];
+            int l = k - f.Grid;
+            int i = l % f.Nu, j = l / f.Nu;
+            p = f.Origin + f.U * ((i + 0.5f) * f.Cu) + f.V * ((j + 0.5f) * f.Cv);
+            return true;
+        }
+
+        /// Advance the running floods (the grid cells the front passed get the team's ink).
+        public void StepFloods(float dt)
+        {
+            for (int k = _floods.Count - 1; k >= 0; k--)
+            {
+                var J = _floods[k];
+                J.T += dt;
+                bool done = J.T >= J.Dur;
+                float x = done ? 1f : J.T / Mathf.Max(0.0001f, J.Dur);
+                float rad = done ? 1e9f : J.Reach * (J.Linear ? x : 1f - (1f - x) * (1f - x));
+                byte val = (byte)(J.Team + 1);
+                bool changed = false;
+                while (J.Index < J.Cells.Length && J.Dist[J.Index] <= rad)
+                {
+                    int c = J.Cells[J.Index++];
+                    byte was = Grid[c];
+                    if (was == val) continue;
+                    Grid[c] = val;
+                    if (was > 0) Counts[was - 1]--;
+                    if (val > 0) Counts[val - 1]++;
+                    changed = true;
+                }
+                if (changed) Version++;
+                if (done) _floods.RemoveAt(k);
+            }
+        }
+
+        public int FloodCount => _floods.Count;
+
         // ------------------------------------------------------------ splats
         /// Lay ink down. Returns the claimed area in m² (the gameplay edge).
         public float Splat(Vector3 center, float radius, int team, float seed = -1f, Kind kind = Kind.Shot,

@@ -333,6 +333,27 @@ namespace INKWAVE.Gameplay
             var paint = GameContext.Paint;
             if (level == null || paint == null) return;
 
+            // Zone Control: the objective comes first — the bot heads for a cell of the live zone
+            var match = GameContext.Match;
+            if (match != null && match.Zones != null)
+            {
+                var zones = match.Zones.Active.Zones;
+                for (int attempt = 0; attempt < 10 && zones.Count > 0; attempt++)
+                {
+                    var zone = zones[UnityEngine.Random.Range(0, zones.Count)];
+                    if (zone.Cells.Count == 0) continue;
+                    int k = zone.Cells[UnityEngine.Random.Range(0, zone.Cells.Count)];
+                    Vector3 p;
+                    if (!paint.CellWorld(k, out p)) continue;
+                    byte owner = paint.SampleWorld(paint.CellFaceId(k), p);
+                    if (owner != 0 && owner - 1 == _a.Team) continue;    // our own ink: go elsewhere
+                    if (Vector3.Distance(p, _a.Pos) < 3f) continue;
+                    _goal = p;
+                    _hasGoal = true;
+                    return;
+                }
+            }
+
             // a random turf face that is not already ours
             for (int attempt = 0; attempt < 14; attempt++)
             {
