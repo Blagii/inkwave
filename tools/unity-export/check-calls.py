@@ -185,12 +185,83 @@ for p in files:
                     classes[name] = info
         stack.extend(node.children)
 
+# ---- the assignments: a float literal does not go into an int variable -----------------------
+
+def literal_type(node, src):
+    """The type of a literal expression, when it is a literal."""
+    t = text(node, src).strip()
+    if re.fullmatch(r"[-+]?\d+", t):
+        return "int"
+    if re.fullmatch(r"[-+]?\d+[fF]", t) or re.fullmatch(r"[-+]?\d*\.\d+([eE][-+]?\d+)?[fF]?", t):
+        return "float"
+    if re.fullmatch(r"[-+]?\d+[lL]", t):
+        return "long"
+    if t in ("true", "false"):
+        return "bool"
+    if t.startswith('"'):
+        return "string"
+    return None
+
+
 # ---- check the call sites ------------------------------------------------------------------
 
 problems = []
 for p, src in texts.items():
     rel = os.path.relpath(p, ROOT)
     tree = PARSER.parse(src)
+    # the assignments to a field: a float literal does not go into an int field
+    scope = {}
+    for node in walk(tree.root_node):
+        if node.type == "variable_declaration":
+            vtype = None
+            for g in node.children:
+                if g.type in ("identifier", "predefined_type", "nullable_type", "array_type", "generic_type",
+                              "type", "scoped_type", "qualified_name"):
+                    vtype = text(g, src).strip()
+                    break
+            for g in node.children:
+                if g.type == "variable_declarator":
+                    kids = [h for h in g.children if h.type == "identifier"]
+                    if kids and vtype:
+                        scope[kids[0].text.decode("utf-8")] = vtype
+        if node.type == "assignment_expression":
+            kids = list(node.children)
+            if len(kids) < 3:
+                continue
+            left, right = kids[0], kids[2]
+            if left.type != "identifier":
+                continue
+            ltype = scope.get(left.text.decode("utf-8"))
+            if ltype not in ("int", "long", "short", "byte"):
+                continue
+            lt = literal_type(right, src)
+            if lt in ("float", "double"):
+                line = src[:node.start_byte].count(b"\n") + 1
+                problems.append(f"{rel}:{line}: a {lt} literal goes into the {ltype} "
+                                f"'{left.text.decode()}'")
+    # the declarations with an initializer: a float literal does not go into an int
+    for node in walk(tree.root_node):
+        if node.type != "variable_declaration":
+            continue
+        vtype = None
+        for g in node.children:
+            if g.type in ("identifier", "predefined_type", "nullable_type", "array_type", "generic_type",
+                          "type", "scoped_type", "qualified_name"):
+                vtype = text(g, src).strip()
+                break
+        for g in node.children:
+            if g.type != "variable_declarator":
+                continue
+            kids = list(g.children)
+            if len(kids) < 3 or kids[1].type != "=":
+                continue
+            value = kids[2]
+            if vtype in ("int", "long", "short", "byte"):
+                lt = literal_type(value, src)
+                if lt in ("float", "double"):
+                    line = src[:node.start_byte].count(b"\n") + 1
+                    problems.append(f"{rel}:{line}: a {lt} literal goes into the {vtype} "
+                                    f"'{text(kids[0], src)}'")
     # the names in scope: name -> declared type (flat; the last declaration wins — good enough)
     scope = {}
     for cls_name, info in classes.items():
