@@ -16,7 +16,7 @@ namespace INKWAVE.Audio
         public const int Rate = 44100;
         public float[] Buf;
         public float T;                       // the write head (seconds)
-        readonly Random _rng = new Random(12345);
+        readonly System.Random _rng = new System.Random(12345);   // not UnityEngine.Random (the name is ambiguous)
 
         public Synth(float seconds)
         {

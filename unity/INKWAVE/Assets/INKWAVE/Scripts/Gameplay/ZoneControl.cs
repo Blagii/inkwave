@@ -101,8 +101,12 @@ namespace INKWAVE.Gameplay
             _objectives.Add(centre);
             if (_zones.Count > nc)
             {
-                _objectives.Add(new Objective { Id = "sideA", Home = 0, Zones = { _zones[nc] } });
-                _objectives.Add(new Objective { Id = "sideB", Home = 1, Zones = { _zones[nc + 1] } });
+                var sideA = new Objective { Id = "sideA", Home = 0 };
+                sideA.Zones.Add(_zones[nc]);
+                var sideB = new Objective { Id = "sideB", Home = 1 };
+                sideB.Zones.Add(_zones[nc + 1]);
+                _objectives.Add(sideA);
+                _objectives.Add(sideB);
             }
             Active = _objectives[0];
             Count[0] = Count[1] = Count0;

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using INKWAVE.Core;
 using INKWAVE.Data;
 using INKWAVE.World;
+using InkPhysics = INKWAVE.World.Physics;   // UnityEngine.Physics would be ambiguous
 using UnityEngine;
 
 namespace INKWAVE.Gameplay
@@ -248,7 +249,7 @@ namespace INKWAVE.Gameplay
                         float h = a.Form == ActorForm.Squid ? GameData.P.Float("squidHeight", 0.55f) : GameData.P.Float("height", 1.45f);
                         if (Mathf.Abs(a.Pos.x - p.Pos.x) > 2f + hr || Mathf.Abs(a.Pos.z - p.Pos.z) > 2f + hr) continue;
                         var res = new SegmentResult();
-                        Physics.SegmentCapsuleDist(p.Prev, p.Pos, a.Pos, hr, h, res);
+                        InkPhysics.SegmentCapsuleDist(p.Prev, p.Pos, a.Pos, hr, h, res);
                         if (res.Dist < hr * 0.9f + p.Radius)
                         {
                             Projectiles.ApplyHit(p.Owner, a, p.Damage);

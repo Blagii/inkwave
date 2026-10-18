@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using INKWAVE.Core;
 using INKWAVE.Data;
 using INKWAVE.World;
+using InkPhysics = INKWAVE.World.Physics;   // UnityEngine.Physics would be ambiguous
 using UnityEngine;
 
 namespace INKWAVE.Gameplay
@@ -822,7 +823,7 @@ namespace INKWAVE.Gameplay
                 float h = e.Form == ActorForm.Squid ? GameData.P.Float("squidHeight", 0.55f) : GameData.P.Float("height", 1.45f);
                 float hr = GameData.P.Float("radius", 0.38f);
                 if (Mathf.Abs(e.Pos.x - p.Pos.x) > 3f + hr || Mathf.Abs(e.Pos.z - p.Pos.z) > 3f + hr) continue;
-                Physics.SegmentCapsuleDist(p.Prev, p.Pos, e.Pos, hr, h, _res);
+                InkPhysics.SegmentCapsuleDist(p.Prev, p.Pos, e.Pos, hr, h, _res);
                 if (_res.Dist < hr * 0.95f + p.Size)
                 {
                     Vector3 at = Vector3.Lerp(p.Prev, p.Pos, _res.T);

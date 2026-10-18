@@ -53,10 +53,11 @@ namespace INKWAVE.Inputs
             }
             if (_pad != null)
             {
-                Vector2 stick = PadStick(_pad.leftStick, 0.14f, 0.95f);
+                Vector2 stick = PadStick(_pad.leftStick.ReadValue(), 0.14f, 0.95f);
                 mx += stick.x;
                 mz -= stick.y;
-                Look += new Vector2(_pad.rightStick.x, _pad.rightStick.y) * PadSensitivity * 3.2f;
+                Vector2 rs = _pad.rightStick.ReadValue();
+                Look += new Vector2(rs.x, rs.y) * PadSensitivity * 3.2f;
             }
             float ml = Mathf.Sqrt(mx * mx + mz * mz);
             if (ml > 1f) { mx /= ml; mz /= ml; }
