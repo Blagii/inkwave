@@ -14,6 +14,7 @@ namespace INKWAVE.Gameplay
     {
         // ---- the roller's band roll
         public float RollT, RollDist, Flick = -1f, FlickRecover;
+        public int SwipeSide = 1;
         public Vector3 LastRollPos;
         public readonly Dictionary<Actor, float> RollHits = new Dictionary<Actor, float>();
 
@@ -36,7 +37,112 @@ namespace INKWAVE.Gameplay
             RollLock = 0f; SinceRoll = 9f; DodgeT = 0f; LockT = 0f; RollPaint = 0f; TurretT = 0f;
             Dodge = false; Turret = false; RollQueued = false; RollsUsed = 0; TwinSide = 1; Hand = 0; DualRolls = 2;
             ChargeT = 0f; BurstT = 0f; BurstPower = 0f; BurstDur = 0f; BurstFrac = 0f; StreamCd = 0f;
-            Slosh = -1f; Streaming = false;
+            Slosh = -1f; Streaming = false; SwipeSide = 1;
+        }
+
+        // ======================================================================================== the bucket
+        /// The bucket: a short wind-up, then a volley of ink hurled in an arc (holding fire keeps hurling).
+        public void Bucket(float dt, bool fire, bool firePressed, JObj w)
+        {
+            var a = A;
+            if (Flick >= 0f)
+            {
+                Flick += dt; a.FireFacing = 0.45f;
+                if (Flick >= w.Float("windup", 0.12f))
+                {
+                    Flick = -1f;
+                    Projectiles.FireSloshBucket(a, w);
+                    Cooldown = w.Float("fireInterval", 0.6f) - w.Float("windup", 0.12f);
+                    FiringT = 0.35f;
+                }
+                return;
+            }
+            if (!(fire || firePressed) || Cooldown > 0f) return;
+            float inkPerShot = w.Float("inkPerShot", 6f);
+            if (a.Ink < inkPerShot) { Empty(); return; }
+            a.Ink -= inkPerShot; a.LastFire = 0f;
+            Flick = 0f;
+        }
+
+        // ======================================================================================== the brush
+        /// The brush: dash along the ground leaving a thin trail, or swipe side to side to flick a spray.
+        public void Brush(float dt, bool fire, bool firePressed, JObj w)
+        {
+            var a = A;
+            if (Flick >= 0f)
+            {
+                Flick += dt; a.FireFacing = 0.4f;
+                if (Flick >= 0.04f)
+                {
+                    Flick = -1f;
+                    Projectiles.FireSwipe(a, w, SwipeSide);
+                    Cooldown = w.Float("swipeInterval", 0.16f);
+                    FiringT = 0.25f;
+                }
+                return;
+            }
+            float hs = new Vector2(a.Vel.x, a.Vel.z).magnitude;
+            bool moving = a.Grounded && hs > 2f && new Vector2(a.Intent.Move.x, a.Intent.Move.z).magnitude > 0.3f;
+            if ((firePressed || (fire && !moving)) && Cooldown <= 0f)
+            {
+                float swipeInk = w.Float("swipeInk", 2.2f);
+                if (a.Ink < swipeInk) Empty();
+                else
+                {
+                    a.Ink -= swipeInk; a.LastFire = 0f; Flick = 0f;
+                    SwipeSide = -SwipeSide;
+                    Rolling = false;   // the swipe stops the dash
+                    return;
+                }
+            }
+
+            bool brushing = fire && moving && a.Ink > 0.3f;
+            RollT = brushing ? RollT + dt : 0f;
+            if (brushing != Rolling)
+            {
+                Rolling = brushing;
+                if (brushing) { LastRollPos = a.Pos; RollDist = 0f; RollHits.Clear(); }
+            }
+            if (!Rolling) return;
+            a.LastFire = 0f;
+
+            float fx = Mathf.Sin(a.Yaw), fz = Mathf.Cos(a.Yaw);
+            float brushWidth = w.Float("brushWidth", 0.95f);
+            var actors = GameContext.Match != null ? GameContext.Match.Actors : null;
+            if (actors != null)
+            {
+                float brushHitCd = w.Float("brushHitCd", 0.35f);
+                for (int i = 0; i < actors.Count; i++)
+                {
+                    var e = actors[i];
+                    if (e == null || e.Team == a.Team || !e.Alive) continue;
+                    float dx = e.Pos.x - a.Pos.x, dz = e.Pos.z - a.Pos.z, dy = e.Pos.y - a.Pos.y;
+                    float fwd = dx * fx + dz * fz, lat = Mathf.Abs(dx * fz - dz * fx);
+                    if (fwd > -0.2f && fwd < 1.2f && lat < brushWidth * 0.5f + 0.3f && Mathf.Abs(dy) < 1.2f)
+                    {
+                        float last;
+                        if (!RollHits.TryGetValue(e, out last)) last = -9f;
+                        if (GameContext.Time - last > brushHitCd)
+                        {
+                            RollHits[e] = GameContext.Time;
+                            Projectiles.ApplyHit(a, e, w.Float("brushDamage", 30f));
+                        }
+                    }
+                }
+            }
+
+            float moved = (a.Pos - LastRollPos).magnitude;
+            if (moved < 0.22f) return;
+            LastRollPos = a.Pos;
+            a.Ink = Mathf.Max(0f, a.Ink - w.Float("brushInkPerMeter", 0.32f) * moved);
+            var v = new Vector3(a.Pos.x + fx * 0.65f, a.Pos.y + 0.35f, a.Pos.z + fz * 0.65f);
+            a.AddTurf(GameContext.Paint.Splat(v, brushWidth * 0.45f, a.Team, UnityEngine.Random.value,
+                                              PaintSystem.Kind.Roll, new Vector3(fx, 0f, fz), 0.5f));
+            GameContext.Emit("weapon:impact", new Dictionary<string, object>
+            {
+                { "pos", new Vector3(a.Pos.x + fx * 0.65f, a.Pos.y + 0.02f, a.Pos.z + fz * 0.65f) },
+                { "team", a.Team }, { "kind", "roll" }, { "radius", brushWidth * 0.5f },
+            });
         }
 
         // ======================================================================================== the roller

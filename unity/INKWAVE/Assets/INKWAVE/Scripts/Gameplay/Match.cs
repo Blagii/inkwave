@@ -52,6 +52,8 @@ namespace INKWAVE.Gameplay
             State = MatchState.Init;
             Actors.Clear();
             Zones = null;
+            Canopies.Clear();
+            Projectiles.Clear();
 
             var cfg = GameData.Config;
             int teamSize = cfg.match.Int("teamSize", 4);

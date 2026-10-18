@@ -64,6 +64,9 @@ namespace INKWAVE.Gameplay
                     return run;
                 case "twins":
                     return FiringT > 0f ? w.Float("moveSpeedFiring", 5.2f) : run;
+                case "brolly":
+                    if (Brolly != null && Brolly.Open > 0.2f) return w.Float("moveSpeedShield", 3.1f);
+                    return FiringT > 0f ? w.Float("moveSpeedFiring", 4.6f) : run;
             }
             if (LockT > 0f) return 0f;                                    // the dualies: planted after a roll
             if (Streaming) return w.Float("moveSpeedFiring", 3.4f);      // the splatling stream
@@ -124,6 +127,9 @@ namespace INKWAVE.Gameplay
                 case "spinner": Spinner(dt, fire, w); break;
                 case "slosher": Slosher(dt, fire, w); break;
                 case "splatling": Splatling(dt, fire, w); break;
+                case "bucket": Bucket(dt, fire, firePressed, w); break;
+                case "brush": Brush(dt, fire, firePressed, w); break;
+                case "brolly": BrollyUpdate(dt, fire, w); break;
                 case "charger": Charger(dt, fire, w); break;
                 default: Auto(dt, fire, w); break;
             }
@@ -222,9 +228,11 @@ namespace INKWAVE.Gameplay
         public string Kind = "shot";
         public float DmgFar;             // the drop's far damage (the near damage fades into it with the distance)
         public float BelowFalloff, BelowFalloffMax;   // the slosher's falloff when it lands below the victim
-        public Volley Volley;            // a volley: one direct hit per victim (the slosher's wave)
+        public Volley Volley;            // a volley: one direct hit per victim (the slosher's wave, the bucket's throw)
+        public bool Wave;                // the slosher's wave (it lands as a thick stripe and splashes)
         public bool Head;                // the lead glob of a volley
         public float Delay;              // the glob leaves a little later (the wave pours out over ~0.1 s)
+        public Blast Blast;              // the brolly's blast (the pellets of one pull land as one hit)
     }
 
     /// A volley of globs: only the first one to reach a victim hurts them (the rest still paint).
@@ -237,6 +245,7 @@ namespace INKWAVE.Gameplay
     public static class Projectiles
     {
         public static readonly List<Shot> List = new List<Shot>();
+        public static readonly List<Blast> Blasts = new List<Blast>();
         static readonly SegmentResult _res = new SegmentResult();
         static readonly Hit _hit = new Hit();
         static readonly Hit _hit2 = new Hit();
@@ -246,7 +255,7 @@ namespace INKWAVE.Gameplay
         const float Deg = Mathf.PI / 180f;
         const float SimDt = 1f / 120f;
 
-        public static void Clear() => List.Clear();
+        public static void Clear() { List.Clear(); Blasts.Clear(); }
 
         // --------------------------------------------------------------------------------- the muzzle
         /// Where the shot leaves the actor (the hand / barrel), with a line-of-sight check.
@@ -259,7 +268,7 @@ namespace INKWAVE.Gameplay
         }
 
         /// The direction from the muzzle toward the actor's aim point.
-        static Vector3 AimFrom(Actor a, Vector3 from, out Vector3 out)
+        public static Vector3 AimFrom(Actor a, Vector3 from, out Vector3 out)
         {
             out = a.AimPoint - from;
             float d = out.magnitude;
@@ -283,7 +292,7 @@ namespace INKWAVE.Gameplay
         }
 
         /// Raise the launch direction so a gravity shot passes through `target` (the web build's _ballistic).
-        static Vector3 Ballistic(Vector3 from, Vector3 dir, Vector3 target, float speed, float straight, float grav, float drag, float maxDist)
+        public static Vector3 Ballistic(Vector3 from, Vector3 dir, Vector3 target, float speed, float straight, float grav, float drag, float maxDist)
         {
             float hx = target.x - from.x, hz = target.z - from.z;
             float hd = Mathf.Sqrt(hx * hx + hz * hz);
@@ -532,6 +541,7 @@ namespace INKWAVE.Gameplay
                     Radius = w.Float("impactRadius", 1.05f) * (i == 0 ? 1f : 0.78f - 0.22f * k),
                     Damage = i == 0 ? w.Float("damageHead", 70f) : w.Float("damageTail", 34f),
                     Head = i == 0,
+                    Wave = true,
                     Size = i == 0 ? 0.2f : 0.14f,
                     Trail = -0.8f, TrailEvery = i < 3 ? w.Float("trailEvery", 1.4f) : 0f,
                     TrailRadius = w.Float("trailRadius", 0.5f),
@@ -550,6 +560,140 @@ namespace INKWAVE.Gameplay
                 { "actor", a }, { "weapon", w.Str("id") }, { "muzzle", m },
                 { "dir", new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch)) },
             });
+        }
+
+        // ---- the bucket: a volley of blobs thrown along the aim, lobbed upward so it clears the cover
+        public static void FireSloshBucket(Actor a, JObj w)
+        {
+            Vector3 m = Muzzle(a);
+            Vector3 dir = AimFrom(a, m, out _);
+            float hd0 = new Vector2(dir.x, dir.z).magnitude;
+            if (hd0 < 1e-4f) hd0 = 1f;
+            float p0 = Mathf.Atan2(dir.y, hd0) + w.Float("lob", 0.3f);
+            dir = new Vector3((dir.x / hd0) * Mathf.Cos(p0), Mathf.Sin(p0), (dir.z / hd0) * Mathf.Cos(p0));
+            // bend the arc so the lead blob lands on the crosshair
+            LobAim(m, ref dir, a.AimPoint, w.Float("throwSpeed", 15.5f), w.Float("gravity", 20f), w.Float("drag", 0.25f), w.Float("reach", 9.5f));
+
+            float hd = new Vector2(dir.x, dir.z).magnitude;
+            if (hd < 1e-4f) hd = 1f;
+            float pitch = Mathf.Atan2(dir.y, hd);
+            var volley = NextVolley();
+            int blobs = Mathf.Max(1, w.Int("blobs", 5));
+            for (int i = 0; i < blobs; i++)
+            {
+                float sp = w.Float("throwSpeed", 15.5f) * (1f - i * 0.075f);
+                float side = (UnityEngine.Random.value - 0.5f) * 0.05f;
+                float pi = pitch + (UnityEngine.Random.value - 0.5f) * 0.04f;
+                float yaw = Mathf.Atan2(dir.x, dir.z) + side;
+                float cp = Mathf.Cos(pi);
+                float size = 0.22f - i * 0.02f;
+                var p = new Shot
+                {
+                    Owner = a, Team = a.Team, Kind = "slosh", Age = 0f, Life = 2.2f, Straight = 0f,
+                    Radius = w.Float("impactRadius", 1.05f) * (1f - i * 0.08f),
+                    Damage = w.Float("damage", 55f),
+                    BelowFalloff = w.Float("belowFalloff", 0.12f),
+                    BelowFalloffMax = w.Float("belowFalloffMax", 0.35f),
+                    Size = size,
+                    Trail = 0f, TrailEvery = 1.6f, TrailRadius = 0.42f,
+                    Grav = w.Float("gravity", 20f), Drag = w.Float("drag", 0.25f),
+                    Seed = UnityEngine.Random.value,
+                    Volley = volley,
+                };
+                p.Pos = m - dir * (i * 0.12f); p.Prev = p.Pos; p.Start = p.Pos;
+                p.Vel = new Vector3(Mathf.Sin(yaw) * cp * sp, Mathf.Sin(pi) * sp, Mathf.Cos(yaw) * cp * sp);
+                List.Add(p);
+            }
+            GameContext.Emit("weapon:fire", new Dictionary<string, object>
+            {
+                { "actor", a }, { "weapon", w.Str("id") }, { "muzzle", m }, { "dir", dir },
+            });
+        }
+
+        // ---- the brush: globs flung off the head as it sweeps sideways low across the front
+        public static void FireSwipe(Actor a, JObj w, int side)
+        {
+            float fx = Mathf.Sin(a.Yaw), fz = Mathf.Cos(a.Yaw);
+            float up = Mathf.Clamp(a.AimPitch, -0.3f, 0.3f) * 0.5f + 0.08f;
+            float arc = w.Float("swipeSpreadDeg", 40f) * Deg * 1.6f;
+            int drops = Mathf.Max(1, w.Int("swipeDrops", 5));
+            for (int i = 0; i < drops; i++)
+            {
+                float t = i / (float)Mathf.Max(1, drops - 1);
+                float ang = a.Yaw - side * (t - 0.5f) * arc;
+                float ox = Mathf.Sin(ang), oz = Mathf.Cos(ang);
+                float tx = -oz * side, tz = ox * side;
+                float sp = w.Float("swipeSpeed", 12.5f) * (0.8f + UnityEngine.Random.value * 0.3f);
+                var p = new Shot
+                {
+                    Owner = a, Team = a.Team, Kind = "drop", Age = 0f, Life = 1f, Straight = 0f,
+                    Radius = 0.55f + UnityEngine.Random.value * 0.2f,
+                    Damage = w.Float("swipeDamageNear", 26f),
+                    DmgFar = w.Float("swipeDamageFar", 12f),
+                    Size = 0.1f,
+                    Trail = 0f, TrailEvery = 2.2f, TrailRadius = 0.32f,
+                    Grav = 26f, Drag = 0.6f,
+                    Seed = UnityEngine.Random.value,
+                };
+                p.Pos = new Vector3(a.Pos.x + ox * 0.85f, a.Pos.y + 0.45f, a.Pos.z + oz * 0.85f);
+                p.Prev = p.Pos; p.Start = p.Pos;
+                float hx = ox * 0.8f + tx * 0.45f + fx * 0.25f, hz = oz * 0.8f + tz * 0.45f + fz * 0.25f;
+                float hl = Mathf.Sqrt(hx * hx + hz * hz);
+                if (hl < 1e-4f) hl = 1f;
+                float cu = Mathf.Cos(up + (UnityEngine.Random.value - 0.5f) * 0.08f);
+                p.Vel = new Vector3((hx / hl) * cu * sp, Mathf.Sin(up) * sp, (hz / hl) * cu * sp);
+                List.Add(p);
+            }
+            GameContext.Emit("weapon:fire", new Dictionary<string, object>
+            {
+                { "actor", a }, { "weapon", w.Str("id") },
+                { "muzzle", new Vector3(a.Pos.x + fx * 0.85f, a.Pos.y + 0.45f, a.Pos.z + fz * 0.85f) },
+                { "dir", new Vector3(fx, Mathf.Sin(up), fz).normalized },
+            });
+        }
+
+        /// Bend a lobbed throw so the lead blob lands on the crosshair (the web build's _lobAim).
+        static bool LobAim(Vector3 from, ref Vector3 dir, Vector3 target, float speed, float grav, float drag, float maxDist)
+        {
+            float hd = new Vector2(target.x - from.x, target.z - from.z).magnitude;
+            if (hd < 1f || hd > maxDist) return false;
+            float dy = target.y - from.y;
+            Func<float, float> f = pitch =>
+            {
+                float vh = Mathf.Cos(pitch) * speed, vy = Mathf.Sin(pitch) * speed, x = 0f, y = 0f;
+                for (int i = 0; i < 180; i++)
+                {
+                    float px = x, py = y;
+                    vy -= grav * SimDt;
+                    float k = 1f - drag * SimDt;
+                    vh *= k; vy *= k;
+                    x += vh * SimDt; y += vy * SimDt;
+                    if (x >= hd) return py + (y - py) * ((hd - px) / Mathf.Max(1e-6f, x - px)) - dy;
+                    if (y < dy - 8f) break;
+                }
+                return -1e3f;
+            };
+            float prev = -0.6f, fp = f(prev);
+            for (float p = -0.58f; p <= 1.2f; p += 0.02f)
+            {
+                float fv = f(p);
+                if (fp < 0f && fv >= 0f)
+                {
+                    float lo = p - 0.02f, hi = p;
+                    for (int k = 0; k < 10; k++)
+                    {
+                        float mid = (lo + hi) * 0.5f;
+                        if (f(mid) >= 0f) hi = mid; else lo = mid;
+                    }
+                    float hdir = new Vector2(dir.x, dir.z).magnitude;
+                    if (hdir < 1e-4f) hdir = 1f;
+                    float cp = Mathf.Cos(hi);
+                    dir = new Vector3((dir.x / hdir) * cp, Mathf.Sin(hi), (dir.z / hdir) * cp);
+                    return true;
+                }
+                fp = fv;
+            }
+            return false;
         }
 
         static readonly Volley[] _vols = { new Volley(), new Volley(), new Volley(), new Volley() };
@@ -605,6 +749,19 @@ namespace INKWAVE.Gameplay
                     List.RemoveAt(List.Count - 1);
                 }
             }
+            FlushBlasts();
+        }
+
+        /// The brolly's blasts: the pellets that landed this frame hit as one.
+        static void FlushBlasts()
+        {
+            for (int i = 0; i < Blasts.Count; i++)
+            {
+                var b = Blasts[i];
+                if (b.Pending.Count == 0) continue;
+                foreach (var kv in b.Pending) ApplyHit(b.Owner, kv.Key, kv.Value);
+                b.Pending.Clear();
+            }
         }
 
         static bool Step(Shot p, float dt)
@@ -617,6 +774,26 @@ namespace INKWAVE.Gameplay
             p.Pos += p.Vel * dt;
 
             bool dead = false;
+
+            // the canopies (the brolly) block the enemy shots
+            Vector3 capAt, capN; BrollyKit capKit;
+            if (Canopies.BlockSegment(p.Prev, p.Pos, p.Team, out capAt, out capN, out capKit))
+            {
+                float mul = p.Kind == "drop" ? 0.25f : p.Kind == "slosh" ? 0.5f : 1f;
+                capKit.Hp -= p.Damage * mul;
+                if (capKit.Hp <= 0f)
+                {
+                    capKit.Hp = 0f;
+                    capKit.State = "broken";
+                    capKit.RegrowT = 0f;
+                    capKit.Open = 0f;
+                }
+                GameContext.Emit("weapon:impact", new Dictionary<string, object>
+                {
+                    { "pos", capAt }, { "normal", capN }, { "team", p.Team }, { "kind", "shot" },
+                });
+                return true;
+            }
 
             // actors
             var actors = GameContext.Match != null ? GameContext.Match.Actors : null;
@@ -642,7 +819,15 @@ namespace INKWAVE.Gameplay
                     if (p.Kind == "drop") dmg = Mathf.Lerp(p.Damage, p.DmgFar, Mathf.Clamp01((p.Start - at).magnitude / 7f));
                     if (p.BelowFalloff > 0f)
                         dmg *= 1f - Mathf.Clamp((p.Start.y - (e.Pos.y + 0.8f) - 0.5f) * p.BelowFalloff, 0f, p.BelowFalloffMax);
-                    ApplyHit(p.Owner, e, dmg);
+                    if (p.Blast != null)
+                    {
+                        // the brolly: the pellets of one pull land as one hit per victim
+                        float pd = WeaponRunner.PelletDamage(p.Owner != null ? p.Owner.Weapon : null, (p.Start - at).magnitude);
+                        float acc;
+                        p.Blast.Pending.TryGetValue(e, out acc);
+                        p.Blast.Pending[e] = acc + pd;
+                    }
+                    else ApplyHit(p.Owner, e, dmg);
                     GameContext.Emit("weapon:impact", new Dictionary<string, object>
                     {
                         { "pos", at }, { "normal", -p.Vel.normalized }, { "team", p.Team }, { "kind", "shot" },
@@ -691,7 +876,7 @@ namespace INKWAVE.Gameplay
             Vector3 at = hit.Point + hit.Normal * 0.14f;
             Vector3 dir = p.Vel.normalized;
             float rad = p.Radius * (0.85f + UnityEngine.Random.value * 0.3f);
-            bool sloshr = p.Kind == "slosh" && p.Volley != null;
+            bool sloshr = p.Kind == "slosh" && p.Wave;
             float area;
             if (sloshr)
             {
