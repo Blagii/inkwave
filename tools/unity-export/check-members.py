@@ -197,7 +197,7 @@ for p in files:
                 body = c
         if not name or body is None:
             continue
-        info = {"members": set(), "fields": {}, "methods": {}}
+        info = {"members": set(), "fields": {}, "methods": {}, "dups": [], "types": set(), "sigs": set()}
         for m in body.children:
             if m.type == "method_declaration":
                 kids = list(m.children)
@@ -205,6 +205,14 @@ for p in files:
                 if plist_at <= 0 or kids[plist_at - 1].type != "identifier":
                     continue
                 mname = kids[plist_at - 1].text.decode("utf-8")
+                info["params"] = []
+                for pc in kids[plist_at].children:
+                    if pc.type not in ("parameter", "optional_parameter"):
+                        continue
+                    ptypes = [text(g, src).strip() for g in pc.children
+                              if g.type in ("nullable_type", "array_type", "generic_type", "predefined_type",
+                                            "type", "scoped_type", "qualified_name", "identifier")]
+                    info["params"].append((ptypes[0] if ptypes else "?", ptypes[-1] if len(ptypes) > 1 else "?"))
                 rtype = None
                 for c in kids[:plist_at]:
                     if c.type in ("identifier", "predefined_type", "nullable_type", "array_type", "generic_type",
@@ -213,6 +221,10 @@ for p in files:
                         break
                 info["members"].add(mname)
                 info["methods"].setdefault(mname, []).append(rtype or "?")
+                sig = (mname, tuple(p[0] for p in info["params"]))
+                if sig in info["sigs"]:
+                    info["dups"].append(mname + "()")
+                info["sigs"].add(sig)
             elif m.type in ("field_declaration", "property_declaration", "event_declaration",
                             "constructor_declaration", "indexer_declaration", "enum_declaration"):
                 ftype = None
@@ -227,10 +239,16 @@ for p in files:
                             if d.type == "variable_declarator":
                                 for g in d.children:
                                     if g.type == "identifier":
-                                        info["members"].add(g.text.decode("utf-8"))
-                                        info["fields"][g.text.decode("utf-8")] = ftype
+                                        nm = g.text.decode("utf-8")
+                                        if nm in info["fields"]:
+                                            info["dups"].append(nm)
+                                        info["members"].add(nm)
+                                        info["fields"][nm] = ftype
                     elif c.type == "identifier":
-                        info["members"].add(c.text.decode("utf-8"))
+                        nm = c.text.decode("utf-8")
+                        if nm in info["fields"]:
+                            info["dups"].append(nm)
+                        info["members"].add(nm)
                     elif c.type == "variable_declaration":
                         pass
                 for c in m.children:
@@ -241,7 +259,11 @@ for p in files:
             if c.type in ("class_declaration", "struct_declaration", "enum_declaration", "interface_declaration"):
                 for d in c.children:
                     if d.type == "identifier":
-                        info["members"].add(d.text.decode("utf-8"))
+                        nm = d.text.decode("utf-8")
+                        if nm in info["fields"]:
+                            info["dups"].append(nm)
+                        info["types"].add(nm)
+                        info["members"].add(nm)
             if c.type == "enum_declaration":
                 info["members"] |= enum_members(c)
         if name in classes:                       # a partial class: merge the members
@@ -446,6 +468,12 @@ def resolve(node, src, scope, own_classes):
     return None
 
 
+# the classes with two members of the same name (CS0102)
+DUPS = []
+for _name, _info in classes.items():
+    for _d in sorted(set(_info.get("dups", []))):
+        DUPS.append(f"the class '{_name}' declares '{_d}' twice")
+
 DECLARED = set(classes.keys())
 for _info in classes.values():
     DECLARED |= _info["members"]
@@ -504,7 +532,11 @@ for p in files:
         # the name is declared nowhere in the project
         unknown.setdefault(mem, []).append((rel, line, recv))
 
-if not unknown and not typed:
+if DUPS:
+    print("· the member check found these duplicate members:")
+    for _d in DUPS:
+        print("  ✗ " + _d)
+if not unknown and not typed and not DUPS:
     print(f"✓ the member check is clean — {len(classes)} classes, {len(files)} files")
     sys.exit(0)
 
@@ -519,4 +551,4 @@ if typed:
     for where in sorted(typed):
         for msg in typed[where]:
             print(f"  ✗ {where}: {msg}")
-sys.exit(1)
+sys.exit(1 if (unknown or typed or DUPS) else 0)

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using INKWAVE.Data;
 using INKWAVE.World;
 using UnityEngine;
+using InkPhysics = INKWAVE.World.Physics;   // UnityEngine.Physics would be ambiguous
 
 namespace INKWAVE.Core
 {
@@ -17,7 +18,7 @@ namespace INKWAVE.Core
     public static class GameContext
     {
         public static Level Level;
-        public static Physics Physics;
+        public static InkPhysics Physics;
         public static Gameplay.PaintSystem Paint;
         public static Gameplay.Match Match;
         public static Gameplay.WeaponRunner Weapons;
@@ -58,7 +59,7 @@ namespace INKWAVE.Core
             if (lvl == null) { lvl = new Level(); Level = lvl; }
             lvl.Build(stage, stage.modes.TryGetValue(modeId, out var mode) ? mode : stage.modes["turf"]);
             StageZones = stage.zones;
-            Physics = new Physics(lvl);
+            Physics = new InkPhysics(lvl);
             Paint = new Gameplay.PaintSystem(lvl, Physics);
             Debug.Log($"[inkwave] stage '{stageId}' ({modeId}): {lvl.Blocks.Count} blocks · {lvl.Faces.Count} faces");
         }

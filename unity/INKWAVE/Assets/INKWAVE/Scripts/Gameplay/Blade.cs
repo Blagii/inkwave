@@ -13,7 +13,7 @@ namespace INKWAVE.Gameplay
     /// The blade's runner state.
     public class BladeKit
     {
-        public class Swing
+        public class SwingState
         {
             public bool Heavy;
             public float T;
@@ -27,7 +27,7 @@ namespace INKWAVE.Gameplay
         public float Cd, Since, Charge, HoldT, Lunge, Lx, Lz, Lv, Queued, Store;
         public bool Charging, Full, Held, LowWarned;
         public int Side = 1;
-        public Swing Swing;
+        public SwingState Swing;
     }
 
     /// The ink wave: a wall of ink that rolls forward, painting and cutting.
@@ -127,7 +127,7 @@ namespace INKWAVE.Gameplay
             a.Ink -= tapInk; a.LastFire = 0f;
             k.Side = -k.Side;
             k.Cd = w.Float("tapInterval", 0.27f); k.Since = 0f;
-            k.Swing = new BladeKit.Swing { Heavy = false, T = 0f, Side = k.Side, Yaw = CutYaw(a), Pitch = a.AimPitch };
+            k.Swing = new BladeKit.SwingState { Heavy = false, T = 0f, Side = k.Side, Yaw = CutYaw(a), Pitch = a.AimPitch };
             FiringT = 0.4f; a.FireFacing = 0.45f;
         }
 
@@ -136,7 +136,7 @@ namespace INKWAVE.Gameplay
             var a = A;
             a.Ink = Mathf.Max(0f, a.Ink - w.Float("heavyInk", 9f)); a.LastFire = 0f;
             k.Cd = w.Float("heavyInterval", 0.46f); k.Since = 0f;
-            k.Swing = new BladeKit.Swing { Heavy = true, T = 0f, Side = 1, Yaw = CutYaw(a), Pitch = a.AimPitch };
+            k.Swing = new BladeKit.SwingState { Heavy = true, T = 0f, Side = 1, Yaw = CutYaw(a), Pitch = a.AimPitch };
             FiringT = 0.5f; a.FireFacing = 0.6f;
             // a short forward lunge with the cut
             float fx = Mathf.Sin(k.Swing.Yaw), fz = Mathf.Cos(k.Swing.Yaw);
@@ -188,7 +188,7 @@ namespace INKWAVE.Gameplay
         }
 
         /// The quick cut: a crescent of droplets flung across the front along the sweep.
-        void FireDrops(Actor a, JObj w, BladeKit.Swing S)
+        void FireDrops(Actor a, JObj w, BladeKit.SwingState S)
         {
             float yaw = S.Yaw;
             int side = S.Side;
@@ -242,7 +242,7 @@ namespace INKWAVE.Gameplay
         }
 
         /// The blade is a hitbox: every enemy inside the arc in front takes the cut once per swing.
-        void Melee(Actor a, JObj w, BladeKit.Swing S)
+        void Melee(Actor a, JObj w, BladeKit.SwingState S)
         {
             float reach = w.Float("reach", 1.5f);
             float half = (S.Heavy ? w.Float("heavyArcDeg", 110f) : w.Float("meleeArcDeg", 150f)) * Mathf.Deg2Rad * 0.5f;
@@ -277,7 +277,7 @@ namespace INKWAVE.Gameplay
         }
 
         /// The blade meets the ground in front at the bottom of the overhead cut.
-        void GroundStroke(Actor a, JObj w, BladeKit.Swing S)
+        void GroundStroke(Actor a, JObj w, BladeKit.SwingState S)
         {
             float fx = Mathf.Sin(S.Yaw), fz = Mathf.Cos(S.Yaw);
             var n = new Vector3(fx, 0f, fz);
@@ -296,7 +296,7 @@ namespace INKWAVE.Gameplay
         }
 
         /// The charged cut sends a wave of ink forward.
-        void SpawnWave(Actor a, JObj w, BladeKit.Swing S)
+        void SpawnWave(Actor a, JObj w, BladeKit.SwingState S)
         {
             float pitch = Mathf.Abs(S.Pitch) < 0.3f ? S.Pitch * 0.4f : Mathf.Clamp(S.Pitch, -0.45f, 0.35f);
             float cp = Mathf.Cos(pitch);

@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using INKWAVE.Core;
 using INKWAVE.World;
 using UnityEngine;
+using InkPhysics = INKWAVE.World.Physics;   // UnityEngine.Physics would be ambiguous
 
 namespace INKWAVE.Gameplay
 {
@@ -43,7 +44,7 @@ namespace INKWAVE.Gameplay
         const float DripReach = 3.9f;
 
         readonly Level _level;
-        readonly Physics _physics;
+        readonly InkPhysics _physics;
         public float Cell = 0.25f;
         public int AtlasSize = 4096;
         public float Ppm;
@@ -67,7 +68,7 @@ namespace INKWAVE.Gameplay
         readonly List<Growing> _growing = new List<Growing>();
         public int Quads;
 
-        public PaintSystem(Level level, Physics physics, int atlasSize = 4096)
+        public PaintSystem(Level level, InkPhysics physics, int atlasSize = 4096)
         {
             _level = level;
             _physics = physics;

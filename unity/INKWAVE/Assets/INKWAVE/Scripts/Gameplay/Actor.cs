@@ -41,7 +41,7 @@ namespace INKWAVE.Gameplay
         public string SubId = "bomb";
         public JObj Sub;
         public string SpecialId = "slam";
-        public JObj Special;
+        public JObj SpecialDef;
 
         // status effects (seconds)
         public float Track, TrackTeam = -1, Poison, Reveal, RevealTeam = -1, Shield;
@@ -129,7 +129,7 @@ namespace INKWAVE.Gameplay
         public void SetSpecial(string id)
         {
             var s = GameData.Special(id);
-            if (s != null) SpecialId = id;
+            if (s != null) { SpecialId = id; SpecialDef = s; }
         }
 
         public float SpecialCost() => Weapon.Float("specialCost", 100f);

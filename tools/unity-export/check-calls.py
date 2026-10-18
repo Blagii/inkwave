@@ -92,6 +92,17 @@ def resolve(node, scope, classes):
 
 NUMERIC = {"int", "float", "double", "long", "short", "byte", "decimal"}
 
+# the static API of the engine and the library
+API = set("""
+Mathf Vector2 Vector3 Vector4 Quaternion Color Color32 Matrix4x4 Bounds Rect Random Time Debug Screen Camera
+GUI Shader Material Texture2D RenderTexture GameObject Object Physics Resources Application Input JsonUtility
+PlayerPrefs Array Math Convert Path Directory File Enumerable string int float double bool long byte char
+StringBuilder Action Func List Dictionary HashSet JObject JArray JToken JsonConvert Activator
+Destroy Instantiate DontDestroyOnLoad Invoke CancelInvoke IsInvoking nameof GetComponent AddComponent
+SetActive GetComponentInChildren GetComponentsInChildren FindObjectOfType FindObjectsOfType
+DestroyImmediate SetParent GetChild SendMessage BroadcastMessage CompareTag StartCoroutine StopCoroutine
+""".split())
+
 # ---- collect the project's classes, their methods and their fields --------------------------
 
 classes = {}          # class name -> {"methods": {name: [(type, name), ...]}, "fields": {name: type}}
@@ -164,7 +175,14 @@ for p in files:
                                         for g in d.children:
                                             if g.type == "identifier":
                                                 info["fields"][g.text.decode("utf-8")] = ftype
-                classes[name] = info
+                if name in classes:               # a partial class: merge the members
+                    old_info = classes[name]
+                    for k, v in info["fields"].items():
+                        old_info["fields"].setdefault(k, v)
+                    for k, v in info["methods"].items():
+                        old_info["methods"].setdefault(k, []).extend(v)
+                else:
+                    classes[name] = info
         stack.extend(node.children)
 
 # ---- check the call sites ------------------------------------------------------------------
@@ -240,6 +258,11 @@ for p, src in texts.items():
             if not overloads:
                 continue
         else:
+            # a call to a plain name: it has to be a method of the project, a local or a known API
+            fname = fn.text.decode("utf-8")
+            if fname not in scope and fname not in API and not any(fname in i["methods"] for i in classes.values()):
+                line = src[:node.start_byte].count(b"\n") + 1
+                problems.append(f"{rel}:{line}: the call '{fname}()' does not exist in the project")
             continue
         arg_nodes = [c for c in args.children if c.type == "argument"]
         n_args = len(arg_nodes)

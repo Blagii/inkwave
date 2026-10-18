@@ -31,6 +31,26 @@ except AttributeError:
     LANG = tree_sitter_c_sharp.language()
 PARSER = Parser(LANG)
 
+# the types of the Unity engine and the .NET library that the port imports (the ambiguous names)
+EXTERNAL_TYPES = {
+    "UnityEngine": ["Physics", "Random", "Object", "Debug", "Time", "Input", "Resources", "Application",
+                    "Quality", "Layer", "Collider", "Animation", "Event", "Screen", "Material", "Shader",
+                    "Mesh", "Texture", "Texture2D", "RenderTexture", "Camera", "Light", "AudioSource",
+                    "AudioClip", "GameObject", "Transform", "Vector2", "Vector3", "Vector4", "Color",
+                    "Quaternion", "Bounds", "Rect", "Plane", "Ray", "Matrix4x4", "GUI", "Mathf", "Sprite",
+                    "Font", "Coroutine", "WaitForSeconds"],
+    "System": ["Random", "Object", "Math", "Action", "Func", "Array", "Console", "Environment", "Buffer",
+               "Convert", "Uri", "Exception", "Type", "DateTime", "TimeSpan", "Version", "Enum", "Guid",
+               "StringBuilder", "Attribute", "Index", "Range", "Span", "Text", "String"],
+    "System.Collections.Generic": ["List", "Dictionary", "HashSet", "SortedSet", "Queue", "Stack",
+                                   "IEnumerable", "IList", "ICollection", "IComparer", "EqualityComparer",
+                                   "IReadOnlyList", "KeyValuePair"],
+    "Newtonsoft.Json": ["JsonConvert", "JsonSerializer", "JsonProperty", "JsonObject", "JsonArray", "JsonReader"],
+    "Newtonsoft.Json.Linq": ["JObject", "JArray", "JToken", "JValue", "JProperty", "JTokenType"],
+    "UnityEngine.InputSystem": ["Keyboard", "Mouse", "Gamepad", "InputAction", "InputDevice"],
+    "UnityEditor": ["AssetDatabase", "EditorUtility", "PrefabUtility", "EditorSceneManager", "Selection"],
+}
+
 # the namespaces the port may use from outside the project
 EXTERNAL = {
     "System", "System.Collections.Generic", "System.IO", "System.Linq",
@@ -45,6 +65,46 @@ NS = re.compile(r"^\s*namespace\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)", re.M)
 USING = re.compile(r"^\s*using\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*;", re.M)
 QUAL = re.compile(r"\bINKWAVE\.[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
 IDENT = re.compile(r"\b[A-Za-z_]\w*\b")
+
+
+def text(node, src):
+    return src[node.start_byte:node.end_byte].decode("utf-8", "replace")
+
+
+def base_name(t):
+    """The simple name of a type (List<Actor> -> List, int[] -> int)."""
+    t = t.strip()
+    if t.endswith("[]"):
+        t = t[:-2].strip()
+    if "<" in t:
+        t = t.split("<", 1)[0].strip()
+    if "." in t:
+        t = t.split(".")[-1].strip()
+    return t
+
+
+def type_usages(tree, src):
+    """The names of the types the file uses (in a type position)."""
+    names = set()
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        t = node.type
+        if t in ("variable_declaration", "parameter", "object_creation_expression", "cast_expression",
+                 "type_argument", "base_list", "generic_name", "tuple_element"):
+            for c in node.children:
+                if c.type in ("variable_declarator", "argument_list", "=", "(", ")"):
+                    continue
+                if c.type in ("identifier", "predefined_type", "nullable_type", "array_type", "generic_type",
+                              "type", "scoped_type", "qualified_name", "generic_name"):
+                    t = text(c, src)
+                    if "." in t:
+                        names.add(t)      # a qualified name: the namespace is explicit
+                    else:
+                        names.add(base_name(t))
+                    break
+        stack.extend(node.children)
+    return names
 
 
 def strip_code(src):
@@ -125,6 +185,12 @@ for p in files:
                 type_ns.setdefault(name, ns)
         stack.extend(node.children)
 
+ns_types = {}
+for _name, _ns in type_ns.items():
+    ns_types.setdefault(_ns, []).append(_name)
+for _ns, _names in EXTERNAL_TYPES.items():
+    ns_types.setdefault(_ns, []).extend(_names)
+
 problems = []
 for p, raw in texts.items():
     rel = os.path.relpath(p, ROOT)
@@ -150,32 +216,19 @@ for p, raw in texts.items():
                       ("Newtonsoft", "Newtonsoft.Json"), ("System", "System")):
         if re.search(r"\b" + ext + r"\.", src) and not any(u == full or u.startswith(full + ".") for u in usings):
             problems.append(f"{rel}: it uses '{ext}.' but does not import it")
-    # the project types a file uses must be reachable
-    # the identifiers that are not a qualified member access (a.b.c -> b and c are not type usages)
-    bare = re.sub(r"\.\s*[A-Za-z_]\w*", " ", src)
-    declared = set(IDENT.findall(re.sub(r"\b(?:class|struct|enum|interface|namespace|using|var|new|return|"
-                                         r"public|private|protected|internal|static|readonly|const|void|float|"
-                                         r"int|bool|string|double|long|byte|short|char|object|override|virtual|"
-                                         r"abstract|sealed|partial|base|this|true|false|null|if|else|for|foreach|"
-                                         r"while|switch|case|break|continue|return|out|in|ref|params|get|set|"
-                                         r"operator|implicit|explicit|checked|unchecked|lock|fixed|unsafe|"
-                                         r"sizeof|typeof|nameof|stackalloc|default|is|as|throw|try|catch|finally|"
-                                         r"using|void|delegate|event|explicit|internal|protected)\b", " ", bare)))
-    # the names the file declares itself are not usages
-    declared_here = set()
+    # the types the file really uses (in a type position)
     tree = PARSER.parse(raw)
-    stack = [tree.root_node]
-    while stack:
-        node = stack.pop()
-        if node.type in ("variable_declarator", "parameter", "method_declaration", "property_declaration",
-                         "field_declaration", "class_declaration", "struct_declaration", "enum_declaration"):
-            for c in node.children:
-                if c.type == "identifier":
-                    declared_here.add(c.text.decode("utf-8"))
-        stack.extend(node.children)
-    declared -= declared_here
+    declared = type_usages(tree, raw)
+    # the names that two of the imported namespaces both provide (CS0104)
+    imported = {u for u in usings if u} | ({own_ns} if own_ns else set())
+    for name in list(declared):
+        if "." in name:
+            continue
+        sources = {n for n, names in ns_types.items() if name in names and n in imported}
+        if len(sources) > 1:
+            problems.append(f"{rel}: the name '{name}' is ambiguous between {', '.join(sorted(sources))}")
     for name, ns in type_ns.items():
-        if name not in declared:
+        if name not in declared or "." in name:
             continue
         if ns == own_ns or ns in usings or ns + "." in [u for u in usings]:
             continue
