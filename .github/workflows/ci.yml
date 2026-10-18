@@ -21,12 +21,18 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      # the C# static checks use tree-sitter; without it they skip quietly
+      - name: the C# static checks
+        run: pip install --break-system-packages tree_sitter tree_sitter_c_sharp || true
       - run: npm run check
       - run: npm run check-maps
 
   # The Unity player (Linux) — the game itself.
+  # It needs a Unity licence in the repository secrets (UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD).
+  # Until those are set, the job is skipped: turn it on with the repository variable UNITY_BUILD = true.
   unity:
     name: unity build (linux)
+    if: ${{ vars.UNITY_BUILD == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +48,11 @@ jobs:
           git diff --exit-code unity/INKWAVE/Assets/Resources/INKWAVE || (echo "the exported data is stale — run npm run unity:export" && exit 1)
       - name: the prop geometry
         run: npm run -s unity:bake
+      - name: the Unity licence
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -z "$UNITY_LICENSE" ]; then echo "::error::the Unity licence is missing (secrets.UNITY_LICENSE)"; exit 1; fi
       - uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}

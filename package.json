@@ -11,7 +11,7 @@
     "relay": "cd server && wrangler dev --ip 0.0.0.0 --port 8787",
     "deploy-relay": "cd server && wrangler deploy",
     "unity:export": "node tools/unity-export/export-data.mjs",
-    "unity:check": "node tools/unity-export/check-data.mjs && npm run -s unity:check-csharp",
+    "unity:check": "node tools/unity-export/check-data.mjs && (command -v python3 >/dev/null && npm run -s unity:check-csharp || echo 'the C# static checks are skipped (no python3)')",
     "unity:check-csharp": "python3 tools/unity-export/check-csharp.py && python3 tools/unity-export/check-members.py && python3 tools/unity-export/check-namespaces.py && python3 tools/unity-export/check-calls.py",
     "unity:bake": "node tools/unity-export/bake-props.mjs"
   },

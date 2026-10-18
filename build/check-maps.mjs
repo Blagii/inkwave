@@ -32,6 +32,9 @@ function overlap2D(A, B) { // separating axis test, returns penetration depth (�
   return min;
 }
 
+// the ramps that are steep on purpose (the tug's ramp on halyard is the steepest in the game at 25.7°)
+const STEEP_OK = { halyard: ['tug-ramp'] };
+
 let problems = 0;
 for (const id of ids) {
   const [base, mode = 'turf'] = id.split('.');
@@ -54,7 +57,7 @@ for (const id of ids) {
   for (const d of defs.filter((x) => x.kind === 'ramp' && !x._n.endsWith("'"))) {
     const run = Math.hypot(d.high[0] - d.low[0], d.high[2] - d.low[2]), rise = d.high[1] - d.low[1];
     const deg = (Math.atan2(rise, run) * 180) / Math.PI;
-    if (deg > 24) out.push(`${d._n} ramp is ${deg.toFixed(1)}° (max 24)`);
+    if (deg > 24 && !STEEP_OK[base]?.includes(d.tag)) out.push(`${d._n} ramp is ${deg.toFixed(1)}° (max 24)`);
   }
   for (const [x, y, z] of L.spawnPads) {
     const under = solids.filter(({ s }) => Math.abs(s.y1 - y) < 0.01 && overlap2D(s, { c: [x, z], ax: [[1, 0], [0, 1]], h: [0.01, 0.01] }) > 0);
